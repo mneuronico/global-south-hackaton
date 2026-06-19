@@ -52,6 +52,17 @@ class CatalogTests(unittest.TestCase):
         self.assertTrue(20 <= parameters["removed"] <= 70)
         self.assertTrue(15 <= parameters["restored"] <= 55)
 
+    def test_two_step_intermediate_problem_is_seeded_and_bounded(self):
+        first = problem_for(0, "intermedio-dos-pasos")
+        second = problem_for(0, "intermedio-dos-pasos")
+        self.assertEqual(first, second)
+        parameters = first.parameters
+        self.assertIsNotNone(parameters)
+        assert parameters is not None
+        self.assertTrue(300 <= parameters["base"] <= 700)
+        self.assertTrue(80 <= parameters["added"] <= 220)
+        self.assertTrue(40 <= parameters["removed"] <= 120)
+
 
 if __name__ == "__main__":
     unittest.main()
