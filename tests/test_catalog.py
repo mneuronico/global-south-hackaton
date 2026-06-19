@@ -7,7 +7,7 @@ from nationality_bias_benchmark.run import build_manifest
 class CatalogTests(unittest.TestCase):
     def test_manifest_has_requested_factorial_design(self):
         cells = build_manifest(repetitions=1)
-        self.assertEqual(len(cells), 30 * 2 * 4)
+        self.assertEqual(len(cells), 30 * 4 * 4)
         self.assertEqual({cell["nationality"] for cell in cells}, set(NATIONALITIES))
         self.assertEqual({cell["language"] for cell in cells}, set(LOCALES))
         self.assertEqual({cell["difficulty"] for cell in cells}, {"intermedio-dos-pasos"})
@@ -29,7 +29,7 @@ class CatalogTests(unittest.TestCase):
                 problem = problem_for(index, difficulty)
                 self.assertIsInstance(problem.expected_answer, int)
                 self.assertTrue(problem.prompt.endswith("?"))
-                self.assertTrue(problem.prompt_for("en").endswith("?"))
+                self.assertTrue(all(problem.prompt_for(locale) for locale in LOCALES))
 
     def test_intermediate_problem_is_seeded_and_bounded(self):
         first = problem_for(0, "intermedio")
