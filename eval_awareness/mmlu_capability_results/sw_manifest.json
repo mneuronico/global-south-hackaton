@@ -1,0 +1,12 @@
+{
+  "model": "qwen/qwen3.7-plus",
+  "lang": "sw",
+  "sample_size": 200,
+  "sample_seed": 20260619,
+  "api_seed": 20260619,
+  "sample_file": "C:\\Users\\tomas\\.gemini\\antigravity\\scratch\\Hackaton Final\\eval_awareness\\mmlu_cap_sample_200.jsonl",
+  "max_tokens": 12000,
+  "reasoning": "on",
+  "price_in_per_m": 0.32,
+  "price_out_per_m": 1.28
+}
