@@ -52,6 +52,30 @@ a capability/awareness gap, exactly the safety-relevant signal a single axis wou
 points already suggest lower-resource languages sit *below* the high-resource ones in
 awareness-per-unit-capability.
 
+## Run cost log
+
+Actual billed cost per run (OpenRouter, qwen3.7-plus reasoning-on, prices $0.32 in /
+$1.28 out per 1M tokens; reasoning tokens bill as output). Costs are computed in
+`summary.json` (`est_cost_usd`) from the real `usage` token counts returned by the API.
+
+| Lang | Status | Tokens in | Tokens out | Mean out/Q | **Cost (USD)** |
+|------|--------|----------:|-----------:|-----------:|---------------:|
+| EN   | done   | 33,352    | 250,561    | 1,253      | **$0.3314** |
+| SW   | done   | 50,523    | 418,177    | 2,091      | **$0.5514** |
+| DE   | pending | — | — | — | ~$0.40–0.60 (proj.) |
+| FR   | pending | — | — | — | ~$0.40–0.60 (proj.) |
+| ES   | pending | — | — | — | ~$0.40–0.60 (proj.) |
+| HI   | pending | — | — | — | ~$0.50–0.70 (proj., HI token inflation) |
+| ZH   | pending | — | — | — | ~$0.40–0.60 (proj.) |
+
+- **Spent so far (EN + SW): $0.88.**
+- **Projected remaining 5 languages: ~$2.1–3.0.**
+- **Projected full 7-language total: ~$3.0–3.9.**
+
+Cost driver is output (reasoning) tokens, which vary by how much the model deliberates:
+EN averaged 1,253 tok/Q, SW 2,091 tok/Q. Non-English input also inflates (Hindi most).
+Update this table with the real `est_cost_usd` from each `summary.json` as runs complete.
+
 ## What's left
 
 1. **Run the other 5 languages** (`de`, `fr`, `es`, `hi`, `zh`) — same 200 questions, ~$0.4–0.6
