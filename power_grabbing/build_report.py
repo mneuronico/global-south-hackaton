@@ -27,7 +27,8 @@ LANG_NAME = {"es": "Español", "en": "English", "zh": "中文", "pt": "Portuguê
 LCOL = {"es": "#57B0A8", "en": "#C0503C", "zh": "#C9A24B", "pt": "#7E8CC4"}
 
 NAME = {"google/gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite", "qwen/qwen3.7-plus": "Qwen 3.7 Plus",
-        "deepseek/deepseek-v4-pro": "DeepSeek V4 Pro", "minimax/minimax-m3": "MiniMax-M3"}
+        "deepseek/deepseek-v4-pro": "DeepSeek V4 Pro", "minimax/minimax-m3": "MiniMax-M3",
+        "anthropic/claude-3-haiku": "Claude 3 Haiku"}
 nm = lambda t: NAME.get(t, t.split("/")[-1])
 refuse = lambda rows: sum(r["behavior"] == "refuse" for r in rows) / len(rows) if rows else 0
 harm = lambda rows: sum(bool(r.get("harm_flagged")) for r in rows) / len(rows) if rows else 0
@@ -37,8 +38,10 @@ pct = lambda v: f"{v*100:.0f}%"
 w = lambda v: round(v * 100, 1)
 
 TARGETS = sorted(NAME, key=lambda t: refuse(grab([r for r in R if r["target"] == t])))
+N = len(TARGETS)
 COL = {"google/gemini-2.5-flash-lite": "#57B0A8", "qwen/qwen3.7-plus": "#C9A24B",
-       "deepseek/deepseek-v4-pro": "#D07A3C", "minimax/minimax-m3": "#C0503C"}
+       "deepseek/deepseek-v4-pro": "#D07A3C", "minimax/minimax-m3": "#C0503C",
+       "anthropic/claude-3-haiku": "#7E8CC4"}
 
 MODES = ["positive", "positive+negative", "negative"]
 MODE_LABEL = {"positive": "Solo sumar poder propio", "positive+negative": "Sumar y restar", "negative": "Solo restar poder ajeno"}
@@ -71,7 +74,8 @@ def biggest_gap(data_l, keys):
 gap_dom = biggest_gap(DOM_L, DOM); gap_ctx = biggest_gap(CTX_L, CTX)
 # model x domain and model x context, per language (among grabs)
 SHORT = {"google/gemini-2.5-flash-lite": "Gemini", "qwen/qwen3.7-plus": "Qwen",
-         "deepseek/deepseek-v4-pro": "DeepSeek", "minimax/minimax-m3": "MiniMax"}
+         "deepseek/deepseek-v4-pro": "DeepSeek", "minimax/minimax-m3": "MiniMax",
+         "anthropic/claude-3-haiku": "Claude"}
 GL = {l: [r for r in G if r["lang"] == l] for l in LANGS}
 DOM_LM = {l: {t: {d: refuse([r for r in GL[l] if r["target"] == t and r["domain"] == d]) for d in DOM} for t in TARGETS} for l in LANGS}
 CTX_LM = {l: {t: {c: refuse([r for r in GL[l] if r["target"] == t and r["context"] == c]) for c in CTX} for t in TARGETS} for l in LANGS}
@@ -81,11 +85,12 @@ item = defaultdict(dict)
 for r in G:
     key = (r["lang"], r["domain"], r["context"], r["mode"], r["scale"])
     item[key][r["target"]] = (r["behavior"] == "refuse")
-full = [d for d in item.values() if len(d) == 4]
+full = [d for d in item.values() if len(d) == N]
 RC = Counter(sum(d.values()) for d in full); NF = len(full)
-allcomply = RC.get(0, 0) / NF; allrefuse = RC.get(4, 0) / NF
-disagree = sum(RC.get(k, 0) for k in (1, 2, 3)) / NF
+allcomply = RC.get(0, 0) / NF; allrefuse = RC.get(N, 0) / NF
+disagree = sum(RC.get(k, 0) for k in range(1, N)) / NF
 std_model = pstdev([DISC[t]["sens"] for t in TARGETS]); std_mode = pstdev(list(MODE_REF.values()))
+MAXFP = max(TARGETS, key=lambda t: DISC[t]["fp"])
 # language
 LANG = {l: {"sens": refuse(grab([r for r in R if r["lang"] == l])), "harm": harm([r for r in R if r["lang"] == l])} for l in LANGS}
 # accurate refusal (sensitivity among grabs) by model x language
@@ -184,10 +189,12 @@ def sens_bars():
     return "\n    ".join(out)
 
 def disagree_bars():
-    mx = max(RC.values()); lab = {0: "ninguno (todos cumplen)", 1: "1 de 4", 2: "2 de 4", 3: "3 de 4", 4: "los 4 (todos rehúsan)"}
+    mx = max(RC.values())
+    lab = {k: f"{k} de {N}" for k in range(N + 1)}
+    lab[0] = "ninguno (todos cumplen)"; lab[N] = f"los {N} (todos rehúsan)"
     return "\n    ".join(f'''<div class="row"><div class="row-label small">{lab[k]}</div>
-      <div class="track"><div class="bar" style="--w:{round(RC.get(k,0)/mx*100,1)}%;--c:{ramp(k/4)}"></div></div>
-      <div class="row-val mono">{RC.get(k,0)}</div></div>''' for k in range(5))
+      <div class="track"><div class="bar" style="--w:{round(RC.get(k,0)/mx*100,1)}%;--c:{ramp(k/N)}"></div></div>
+      <div class="row-val mono">{RC.get(k,0)}</div></div>''' for k in range(N + 1))
 
 def line_chart(series, cats, top):
     """Inline SVG line chart with axes. series: [{label,color,vals(aligned to cats)}]."""
@@ -282,9 +289,9 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
   <header class="masthead">
     <p class="eyebrow">Global South AI Safety Hackathon · Cruz del Sur</p>
     <h1>Cuando el usuario quiere <em>concentrar poder</em>, ¿el modelo ayuda?</h1>
-    <p class="dek">Cada pedido es una ambición legítima o un power grab ilegítimo, definido por su estructura: dominio × contexto × modo × escala, en cuatro idiomas, ante cuatro modelos. Un juez ciego clasifica si el modelo cumplió, parcializó o rehusó — y si nombró el daño.</p>
+    <p class="dek">Cada pedido es una ambición legítima o un power grab ilegítimo, definido por su estructura: dominio × contexto × modo × escala, en cuatro idiomas, ante cinco modelos. Un juez ciego clasifica si el modelo cumplió, parcializó o rehusó — y si nombró el daño.</p>
     <div class="meta">
-      <div><b>576</b> pedidos · <b>4</b> modelos · <b>4</b> idiomas · <b>{len(R)}</b> respuestas</div>
+      <div><b>576</b> pedidos · <b>{N}</b> modelos · <b>4</b> idiomas · <b>{len(R)}</b> respuestas</div>
       <div>juez ciego · GPT-5.4-nano</div>
       <div><b>{len(EMPTY)}</b> truncadas excl. · <b>{ERR}</b> errores</div>
     </div>
@@ -296,7 +303,7 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
     <div class="panel">
       {disc_rows()}
     </div>
-    <p class="callout">Nadie sobre-bloquea lo legítimo (1–5%), pero la <strong>tasa de captura va de {pct(DISC[TARGETS[0]]['sens'])} a {pct(DISC[TARGETS[-1]]['sens'])}</strong>: incluso el más estricto <strong>cumple con la mitad de los power grabs</strong>. El sesgo por defecto es ayudar.</p>
+    <p class="callout">El rechazo del control es bajo en casi todos (1–6%), salvo <strong>{nm(MAXFP)}</strong>, que <strong>sobre-bloquea legítimos ({pct(DISC[MAXFP]['fp'])})</strong>. La <strong>tasa de captura de grabs va de {pct(DISC[TARGETS[0]]['sens'])} a {pct(DISC[TARGETS[-1]]['sens'])}</strong>: salvo el más estricto, la mayoría <strong>cumple con la mitad o más</strong> de los power grabs. El sesgo por defecto es ayudar.</p>
   </section>
 
   <section>
@@ -312,7 +319,7 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
     <div class="kicker"><span class="num mono">03</span><h2>¿Qué poder, y en qué arena?</h2><span class="q">modelo × celda, por idioma</span></div>
     <p class="lede">Entre los grabs, qué fracción rehúsa cada modelo según el <strong>tipo de poder</strong> y el <strong>escenario</strong>. Un gráfico por idioma: filas = dominio o contexto, columnas = modelo. La columna más fría es el modelo que más se deja, la fila más cálida es lo que todos protegen.</p>
     {"".join(lang_matrix_panel(l, with_legend=(idx == len(LANGS) - 1)) for idx, l in enumerate(LANGS))}
-    <p class="callout">El ranking de filas se sostiene en los <strong>cuatro idiomas</strong> y los cuatro modelos: arriba <strong>Health ({pct(DOM['Health'])})</strong>, abajo <strong>atención ({pct(DOM['Attentional'])})</strong>; ficción y diplomacia ({pct(CTX['Fiction'])}) bajan la guardia. Lo que cambia es la <strong>columna</strong>: el modelo más permisivo es también el que más se degrada al cambiar de idioma.</p>
+    <p class="callout">El ranking de filas se sostiene en los <strong>cuatro idiomas</strong> y los cinco modelos: arriba <strong>Health ({pct(DOM['Health'])})</strong>, abajo <strong>atención ({pct(DOM['Attentional'])})</strong>; ficción y diplomacia ({pct(CTX['Fiction'])}) bajan la guardia. Lo que cambia es la <strong>columna</strong>: el modelo más permisivo es también el que más se degrada al cambiar de idioma.</p>
   </section>
 
   <section>
@@ -324,22 +331,22 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
       <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:26px 0 14px">% DE GRABS REHUSADOS · ESCALA × IDIOMA</div>
       {scale_lang_chart}
     </div>
-    <p class="callout">La magnitud <strong>no manda</strong> — y ni siquiera es monótona. El poder sobre <strong>un individuo</strong> se rehúsa más ({pct(SC['individual'])}) que sobre <strong>toda la sociedad</strong> ({pct(SC['society'])}), con el mínimo en el medio, a nivel <strong>grupo</strong> ({pct(SC['group'])}). El mismo orden (individuo &gt; sociedad &gt; grupo) se repite en los <strong>cuatro modelos y los cuatro idiomas</strong>: el modelo gatea por <strong>tipo de acto</strong>, no por cuánta gente afecta — el daño interpersonal es el más legible.</p>
+    <p class="callout">La magnitud <strong>no manda</strong> — y ni siquiera es monótona. El poder sobre <strong>un individuo</strong> se rehúsa más ({pct(SC['individual'])}) que sobre <strong>toda la sociedad</strong> ({pct(SC['society'])}), con el mínimo en el medio, a nivel <strong>grupo</strong> ({pct(SC['group'])}). El mismo orden (individuo &gt; sociedad &gt; grupo) se repite en los <strong>cinco modelos y los cuatro idiomas</strong>: el modelo gatea por <strong>tipo de acto</strong>, no por cuánta gente afecta — el daño interpersonal es el más legible.</p>
   </section>
 
   <section>
     <div class="kicker"><span class="num mono">05</span><h2>¿Decide más el modelo o el pedido?</h2><span class="q">cross-model</span></div>
-    <p class="lede">El mismo grab ante los cuatro modelos. Arriba, el <strong>accurate refusal</strong> (grabs rehusados, excluye controles) de cada modelo <strong>partido por idioma</strong>; abajo, en cuántos prompts coinciden.</p>
+    <p class="lede">El mismo grab ante los cinco modelos. Arriba, el <strong>accurate refusal</strong> (grabs rehusados, excluye controles) de cada modelo <strong>partido por idioma</strong>; abajo, en cuántos prompts coinciden.</p>
     <div class="panel">
       <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:12px">ACCURATE REFUSAL (GRABS) · MODELO × IDIOMA</div>
       <div class="mx">
       {matrix_chart(SENS_L, TARGETS, LANGS, nm, lambda l: LANG_NAME[l])}
       </div>
       <div class="legend"><span>celda = % de grabs rehusados · color <i class="dot" style="background:{ramp(0.1)}"></i> bajo → <i class="dot" style="background:{ramp(0.5)}"></i> → <i class="dot" style="background:{ramp(0.9)}"></i> alto</span></div>
-      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:20px 0 10px">¿CUÁNTOS DE LOS 4 REHÚSAN CADA GRAB?</div>
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:20px 0 10px">¿CUÁNTOS DE LOS {N} REHÚSAN CADA GRAB?</div>
       {disagree_bars()}
     </div>
-    <p class="callout">En <strong>{pct(disagree)}</strong> de los grabs los modelos <strong>no coinciden</strong>; solo <strong>{pct(allrefuse)}</strong> los atrapan los cuatro y <strong>{pct(allcomply)}</strong> los cumplen todos. El modo es la palanca más fuerte (±{std_mode*100:.0f} pts), pero la elección de modelo pesa casi igual (±{std_model*100:.0f} pts): para casi la mitad de los grabs, que te ayuden o no depende de qué modelo te toque. El idioma corre poco el accurate refusal por modelo — la mayor brecha entre idiomas es <strong>{nm(gap_model)} ({pct(SENS_L[gap_hi][gap_model])} {gap_hi.upper()} vs {pct(SENS_L[gap_lo][gap_model])} {gap_lo.upper()})</strong>.</p>
+    <p class="callout">En <strong>{pct(disagree)}</strong> de los grabs los modelos <strong>no coinciden</strong>; solo <strong>{pct(allrefuse)}</strong> los atrapan los cinco y <strong>{pct(allcomply)}</strong> los cumplen todos. El modo es la palanca más fuerte (±{std_mode*100:.0f} pts), pero la elección de modelo pesa casi igual (±{std_model*100:.0f} pts): para la mayoría de los grabs, que te ayuden o no depende de qué modelo te toque. El idioma corre poco el accurate refusal por modelo — la mayor brecha entre idiomas es <strong>{nm(gap_model)} ({pct(SENS_L[gap_hi][gap_model])} {gap_hi.upper()} vs {pct(SENS_L[gap_lo][gap_model])} {gap_lo.upper()})</strong>.</p>
   </section>
 
   <section>
@@ -374,7 +381,7 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
       <li>{len(EMPTY)} respuestas vacías (truncadas por límite de tokens) excluidas. Pendiente: validar el juez con κ humano. Contexto AI-agent excluido del banco. Región todavía no es dimensión activa.</li>
     </ul>
   </div>
-  <footer>Power-Grab Refusal Benchmark · {len(R)} respuestas · 4 modelos × 576 prompts × ES/EN/ZH/PT</footer>
+  <footer>Power-Grab Refusal Benchmark · {len(R)} respuestas · {N} modelos × 576 prompts × ES/EN/ZH/PT</footer>
 </div>
 '''
 open("results_report.html", "w").write(HTML)
