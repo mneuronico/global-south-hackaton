@@ -36,7 +36,7 @@ from all_prompts_576_zh import PROMPTS_576_ZH
 from all_prompts_576_pt import PROMPTS_576_PT
 
 TARGETS = ["minimax/minimax-m3"]
-WORKERS = 16
+WORKERS = int(os.environ.get("WORKERS", "16"))
 OUT = "experiment_full_results.json"
 
 # lang -> bank (identical cells across all languages)
@@ -128,7 +128,7 @@ def run_one(target, lang, idx, item):
         _results.append(row)
         if _done % 25 == 0 or _done == _total:
             print(f"  ... {_done}/{_total}", flush=True)
-            with open(OUT, "w") as f:
+            with open(OUT, "w", encoding="utf-8") as f:
                 json.dump(_results, f, ensure_ascii=False, indent=2)
     return row
 
@@ -170,7 +170,7 @@ def main():
         return
     with ThreadPoolExecutor(max_workers=WORKERS) as ex:
         list(ex.map(lambda a: run_one(*a), jobs))
-    with open(OUT, "w") as f:
+    with open(OUT, "w", encoding="utf-8") as f:
         json.dump(_results, f, ensure_ascii=False, indent=2)
     summarize()
     print(f"\n  results -> {OUT}", flush=True)
