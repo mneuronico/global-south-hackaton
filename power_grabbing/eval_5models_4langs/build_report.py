@@ -45,6 +45,14 @@ N = len(TARGETS)
 COL = {"google/gemini-2.5-flash-lite": "#57B0A8", "qwen/qwen3.7-plus": "#C9A24B",
        "deepseek/deepseek-v4-pro": "#D07A3C", "minimax/minimax-m3": "#C0503C",
        "anthropic/claude-3-haiku": "#7E8CC4"}
+# capability / tier proxy = Artificial Analysis Intelligence Index (one consistent
+# cross-provider composite scale; non-reasoning variant where available, matching
+# our low-effort runs). Single comparable axis, unlike the heterogeneous MMLU figures.
+AAI = {"google/gemini-2.5-flash-lite": 7, "qwen/qwen3.7-plus": 39,
+       "deepseek/deepseek-v4-pro": 31, "minimax/minimax-m3": 44,
+       "anthropic/claude-3-haiku": 12}
+AAI_NOTE = {"google/gemini-2.5-flash-lite": "non-reasoning", "deepseek/deepseek-v4-pro": "non-reasoning",
+            "qwen/qwen3.7-plus": "", "minimax/minimax-m3": "", "anthropic/claude-3-haiku": ""}
 
 MODES = ["positive", "positive+negative", "negative"]
 MODE_LABEL = {"positive": "Power seeking", "positive+negative": "Power grabbing", "negative": "Disempowerment"}
@@ -141,6 +149,20 @@ def disc_rows():
           <div class="dc-line"><span class="dc-tag">disempowerment <span class="prom">control</span></span><div class="track"><div class="bar" style="--w:{w(na)}%;--c:#5a6170"></div></div><span class="dc-val mono">{pct(na)}</span></div>
           <div class="dc-line"><span class="dc-tag">power seeking <span class="prom">control</span></span><div class="track"><div class="bar" style="--w:{w(fp)}%;--c:#3a4150"></div></div><span class="dc-val mono">{pct(fp)}</span></div>
         </div></div>''')
+    return "\n      ".join(out)
+
+def cap_rows():
+    """Capability/tier (Artificial Analysis Intelligence Index, 0-100) per model,
+    same order as section 01 (by power-grabbing refusal); refusal shown as a
+    sub-label for direct comparison. Bar scaled to a 0-50 window (index ceiling
+    for this panel) so the spread is legible."""
+    out = []
+    for t in TARGETS:
+        v = AAI[t]; note = f' · {AAI_NOTE[t]}' if AAI_NOTE[t] else ""
+        out.append(f'<div class="row"><div class="row-label">{nm(t)}<br>'
+                   f'<span class="rl-sub mono">p.grab {pct(DISC[t]["sens"])}{note}</span></div>'
+                   f'<div class="track tall"><div class="bar" style="--w:{v/50*100:.0f}%;--c:{COL[t]}"></div></div>'
+                   f'<div class="row-val mono">{v}</div></div>')
     return "\n      ".join(out)
 
 def disc_lang_rows():
@@ -373,6 +395,13 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
       {disc_lang_rows()}
     </div>
     <p class="callout">El idioma no es neutro. El sobre-rechazo de <strong>{nm(fpgap_model)}</strong> se concentra en <strong>{fpgap_hi.upper()}</strong> ({pct(FP_L[fpgap_hi][fpgap_model])} de control rehusado vs {pct(min(FP_L[l][fpgap_model] for l in LANGS))} en su idioma más laxo), y su sensibilidad también: {pct(max(SENS_L[l][fpgap_model] for l in LANGS))} en el idioma más estricto vs {pct(min(SENS_L[l][fpgap_model] for l in LANGS))} en el más laxo. El mismo modelo es <strong>otro</strong> según el idioma del pedido.</p>
+
+    <div class="kicker" style="margin-top:42px"><span class="num mono">01·c</span><h2>¿La capacidad predice el refusal?</h2><span class="q">tier (AA Index) vs power grabbing</span></div>
+    <p class="lede">Tier de cada modelo según el <strong>Artificial Analysis Intelligence Index</strong> (compuesto, una sola escala entre proveedores), en el <strong>mismo orden</strong> que arriba. Si rehusar grabs fuera cuestión de "ser más capaz", tier y refusal subirían juntos.</p>
+    <div class="panel">
+      {cap_rows()}
+    </div>
+    <p class="callout">Están <strong>desacoplados</strong>. <strong>{nm(max(TARGETS, key=lambda t: DISC[t]['sens']))}</strong> es de los <strong>menos capaces</strong> (índice {AAI[max(TARGETS, key=lambda t: DISC[t]['sens'])]}) y el que <strong>más rehúsa</strong> ({pct(max(DISC[t]['sens'] for t in TARGETS))}); el <strong>más capaz</strong> ({nm(max(TARGETS, key=lambda t: AAI[t]))}, índice {max(AAI.values())}) rehúsa la mitad. El refusal de power grabbing es una propiedad de <em>alineamiento/política</em>, no de capacidad — no se compra "siendo más listo". <span class="rl-sub">AA Intelligence Index: compuesto de varios benchmarks en escala única; variante non-reasoning donde aplica, acorde a la corrida a esfuerzo low.</span></p>
   </section>
 
   <section>
