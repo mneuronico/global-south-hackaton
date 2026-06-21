@@ -21,20 +21,17 @@ Metodología completa en **`METHODOLOGY.md`**. Informe en **`results_report.html
 - venv en `.venv`. Key OpenRouter en `.env` (gitignored).
   ⚠️ la key se compartió en chat — **rotarla** cuando se pueda.
 
-## ⏸️ DÓNDE QUEDÉ (retomar acá)
-Corriendo **gemini/deepseek/qwen × zh + pt** para completar el grid 4×4
-(es/en/zh/pt × 4 modelos). Frenado a mano el 2026-06-21.
-- gemini × zh/pt: ✅ completo
-- deepseek × zh/pt: ✅ completo
-- **qwen × zh/pt: 721/1152 — faltan 431**
+## ✅ GRID 4×4 COMPLETO (2026-06-21)
+Terminado qwen × zh/pt (431 jobs restantes). **Grid 4×4 cerrado**: 4 modelos
+(gemini-2.5-flash-lite, qwen3.7-plus, deepseek-v4-pro, minimax-m3) × 4 idiomas
+(es/en/zh/pt) × 576 prompts = **9216 filas**, cada celda completa.
+Vacíos/truncados excluidos de métricas: minimax 56, gemini 10, deepseek 8, qwen 2.
 
-**Para seguir mañana:**
-```bash
-cd .../power_grabbing
-.venv/bin/python run_zh_pt.py      # resume-aware: corre solo los 431 que faltan
-```
-(guardado incremental cada 25 en `experiment_full_results.json`; los parciales ya
-están salvados localmente).
+**Informe 4×4 regenerado** (`build_report.py` → `results_report.html`): `LANG_SCOPE`
+ampliado a los 4 idiomas; cross-model ahora agrupa por **combo
+(domain×context×mode×scale)+lang**, NO por `i` (verificado: en zh el `i` no alinea
+entre modelos, 576/576 mismatch). Resultados 4-idiomas: modo 3%→26%→48%; sens
+Gemini 17% / Qwen 36% / DeepSeek 40% / MiniMax 55%; disagree cross-model 49%.
 
 ## Estado del dataset (`experiment_full_results.json`, ~8785 filas)
 Grid modelos × idiomas (576 prompts c/u):
@@ -78,8 +75,8 @@ scaffold/            # generación del banco (one-shot)
 ```
 
 ## Pendiente
-- [ ] Terminar qwen × zh/pt (431 jobs) → `run_zh_pt.py`.
-- [ ] Informe **4×4** (ampliar `build_report.py` a 4 idiomas; agrupar cross-model por combo).
+- [x] Terminar qwen × zh/pt (431 jobs) → `run_zh_pt.py`. **Hecho 2026-06-21.**
+- [x] Informe **4×4** (ampliar `build_report.py` a 4 idiomas; agrupar cross-model por combo). **Hecho 2026-06-21.**
 - [ ] Commit/push de resultados completos a `nico` (PR #2).
 - [ ] Validar juez con Cohen's κ vs humano (~20 etiquetas).
 - [ ] Decidir AI-agent (apartado en `ai_agent_prompts.py`) y la dimensión región (banco ya neutralizado).

@@ -10,19 +10,21 @@ from collections import Counter, defaultdict
 from statistics import pstdev
 
 ALL = json.load(open("experiment_full_results.json"))
-# Report scope: es/en only — the two complete, paired languages (all 4 models).
-# pt/zh exist in the data but only cover 2 of 4 models, so pooling them would
-# skew every cross-model number. Excluded here; see the ES/EN language split.
-LANG_SCOPE = ("es", "en")
+# Report scope: the full 4x4 grid — es/en/zh/pt, all four complete and paired
+# across all 4 models (576 cells each). Cross-model comparisons group by the
+# factorial combo (domain x context x mode x scale), NOT by `i`: `i` aligns
+# across models in es/en but is renumbered in zh/pt, so combo is the only key
+# that pairs the same cell across models in every language.
+LANG_SCOPE = ("es", "en", "zh", "pt")
 ALL = [r for r in ALL if r.get("lang") in LANG_SCOPE]
 GR = [r for r in ALL if r.get("behavior") in ("comply", "partial", "refuse")]
 EMPTY = [r for r in GR if not (r.get("response") or "").strip()]
 R = [r for r in GR if (r.get("response") or "").strip()]
 ERR = sum(1 for r in ALL if r.get("behavior") in ("error", "parse_error"))
 esc = html.escape
-LANGS = ["es", "en"]
-LANG_NAME = {"es": "Español", "en": "English"}
-LCOL = {"es": "#57B0A8", "en": "#C0503C"}
+LANGS = ["es", "en", "zh", "pt"]
+LANG_NAME = {"es": "Español", "en": "English", "zh": "中文", "pt": "Português"}
+LCOL = {"es": "#57B0A8", "en": "#C0503C", "zh": "#C9A24B", "pt": "#7E8CC4"}
 
 NAME = {"google/gemini-2.5-flash-lite": "Gemini 2.5 Flash Lite", "qwen/qwen3.7-plus": "Qwen 3.7 Plus",
         "deepseek/deepseek-v4-pro": "DeepSeek V4 Pro", "minimax/minimax-m3": "MiniMax-M3"}
@@ -70,20 +72,24 @@ SHORT = {"google/gemini-2.5-flash-lite": "Gemini", "qwen/qwen3.7-plus": "Qwen",
 GL = {l: [r for r in G if r["lang"] == l] for l in LANGS}
 DOM_LM = {l: {t: {d: refuse([r for r in GL[l] if r["target"] == t and r["domain"] == d]) for d in DOM} for t in TARGETS} for l in LANGS}
 CTX_LM = {l: {t: {c: refuse([r for r in GL[l] if r["target"] == t and r["context"] == c]) for c in CTX} for t in TARGETS} for l in LANGS}
-# disagreement among grabs
+# disagreement among grabs — key by factorial combo, NOT by `i` (i is renumbered
+# in zh/pt, so it would never pair the same cell across models there).
 item = defaultdict(dict)
 for r in G:
-    item[(r["lang"], r["i"])][r["target"]] = (r["behavior"] == "refuse")
+    key = (r["lang"], r["domain"], r["context"], r["mode"], r["scale"])
+    item[key][r["target"]] = (r["behavior"] == "refuse")
 full = [d for d in item.values() if len(d) == 4]
 RC = Counter(sum(d.values()) for d in full); NF = len(full)
 allcomply = RC.get(0, 0) / NF; allrefuse = RC.get(4, 0) / NF
 disagree = sum(RC.get(k, 0) for k in (1, 2, 3)) / NF
 std_model = pstdev([DISC[t]["sens"] for t in TARGETS]); std_mode = pstdev(list(MODE_REF.values()))
 # language
-LANG = {l: {"sens": refuse(grab([r for r in R if r["lang"] == l])), "harm": harm([r for r in R if r["lang"] == l])} for l in ("es", "en")}
+LANG = {l: {"sens": refuse(grab([r for r in R if r["lang"] == l])), "harm": harm([r for r in R if r["lang"] == l])} for l in LANGS}
 # accurate refusal (sensitivity among grabs) by model x language
 SENS_L = {l: {t: refuse(grab([r for r in R if r["target"] == t and r["lang"] == l])) for t in TARGETS} for l in LANGS}
-gap_model = max(TARGETS, key=lambda t: abs(SENS_L["es"][t] - SENS_L["en"][t]))
+# model whose accurate-refusal swings most across languages
+gap_model = max(TARGETS, key=lambda t: max(SENS_L[l][t] for l in LANGS) - min(SENS_L[l][t] for l in LANGS))
+gap_hi = max(LANGS, key=lambda l: SENS_L[l][gap_model]); gap_lo = min(LANGS, key=lambda l: SENS_L[l][gap_model])
 # recognition vs action among grabs
 complied = [r for r in G if r["behavior"] == "comply"]
 named_complied = [r for r in complied if r.get("harm_flagged")]
@@ -131,6 +137,24 @@ def matrix_chart(data_l, rows, cols, row_label, col_label):
         body.append(f'<div class="mx-row" style="grid-template-columns:{gtc}"><div class="mx-rowh">{row_label(r)}</div>{cells}</div>')
     return head + "\n    " + "\n    ".join(body)
 
+def lang_matrix_panel(l, with_legend=False):
+    legend = (f'<div class="legend"><span>celda = % de grabs rehusados · color '
+              f'<i class="dot" style="background:{ramp(0.1)}"></i> bajo → '
+              f'<i class="dot" style="background:{ramp(0.5)}"></i> → '
+              f'<i class="dot" style="background:{ramp(0.9)}"></i> alto</span></div>') if with_legend else ""
+    return f'''<div class="panel" style="margin-top:14px">
+      <div class="mono small" style="color:var(--accent);letter-spacing:.14em;margin-bottom:14px">{LANG_NAME[l].upper()}</div>
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:10px">modelo × dominio</div>
+      <div class="mx">
+      {matrix_chart(DOM_LM[l], dom_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
+      </div>
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:22px 0 10px">modelo × contexto</div>
+      <div class="mx">
+      {matrix_chart(CTX_LM[l], ctx_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
+      </div>
+      {legend}
+    </div>'''
+
 def lang_split_bars(data_l, order, label=lambda k: k, label_cls="row-label mono small"):
     out = []
     for k in order:
@@ -139,6 +163,13 @@ def lang_split_bars(data_l, order, label=lambda k: k, label_cls="row-label mono 
           <span class="row-val mono">{pct(data_l[l][k])}</span></div>''' for l in LANGS)
         out.append(f'<div class="lsr"><div class="{label_cls}">{label(k)}</div><div class="ls-bars">{lines}</div></div>')
     return "\n    ".join(out)
+
+def lang_metric_rows(metric):
+    return "\n      ".join(
+        f'<div class="row"><div class="row-label small">{LANG_NAME[l]}</div>'
+        f'<div class="track"><div class="bar" style="--w:{w(LANG[l][metric])}%;--c:{LCOL[l]}"></div></div>'
+        f'<div class="row-val mono">{pct(LANG[l][metric])}</div></div>'
+        for l in LANGS)
 
 def sens_bars():
     out = []
@@ -215,9 +246,9 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
   <header class="masthead">
     <p class="eyebrow">Global South AI Safety Hackathon · Cruz del Sur</p>
     <h1>Cuando el usuario quiere <em>concentrar poder</em>, ¿el modelo ayuda?</h1>
-    <p class="dek">Cada pedido es una ambición legítima o un power grab ilegítimo, definido por su estructura: dominio × contexto × modo × escala, en dos idiomas, ante cuatro modelos. Un juez ciego clasifica si el modelo cumplió, parcializó o rehusó — y si nombró el daño.</p>
+    <p class="dek">Cada pedido es una ambición legítima o un power grab ilegítimo, definido por su estructura: dominio × contexto × modo × escala, en cuatro idiomas, ante cuatro modelos. Un juez ciego clasifica si el modelo cumplió, parcializó o rehusó — y si nombró el daño.</p>
     <div class="meta">
-      <div><b>576</b> pedidos · <b>4</b> modelos · <b>2</b> idiomas · <b>{len(R)}</b> respuestas</div>
+      <div><b>576</b> pedidos · <b>4</b> modelos · <b>4</b> idiomas · <b>{len(R)}</b> respuestas</div>
       <div>juez ciego · GPT-5.4-nano</div>
       <div><b>{len(EMPTY)}</b> truncadas excl. · <b>{ERR}</b> errores</div>
     </div>
@@ -244,30 +275,8 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
   <section>
     <div class="kicker"><span class="num mono">03</span><h2>¿Qué poder, y en qué arena?</h2><span class="q">modelo × celda, por idioma</span></div>
     <p class="lede">Entre los grabs, qué fracción rehúsa cada modelo según el <strong>tipo de poder</strong> y el <strong>escenario</strong>. Un gráfico por idioma: filas = dominio o contexto, columnas = modelo. La columna más fría es el modelo que más se deja, la fila más cálida es lo que todos protegen.</p>
-    <div class="panel">
-      <div class="mono small" style="color:var(--accent);letter-spacing:.14em;margin-bottom:14px">ESPAÑOL</div>
-      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:10px">modelo × dominio</div>
-      <div class="mx">
-      {matrix_chart(DOM_LM['es'], dom_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
-      </div>
-      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:22px 0 10px">modelo × contexto</div>
-      <div class="mx">
-      {matrix_chart(CTX_LM['es'], ctx_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
-      </div>
-    </div>
-    <div class="panel" style="margin-top:14px">
-      <div class="mono small" style="color:var(--accent);letter-spacing:.14em;margin-bottom:14px">ENGLISH</div>
-      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:10px">modelo × dominio</div>
-      <div class="mx">
-      {matrix_chart(DOM_LM['en'], dom_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
-      </div>
-      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:22px 0 10px">modelo × contexto</div>
-      <div class="mx">
-      {matrix_chart(CTX_LM['en'], ctx_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
-      </div>
-      <div class="legend"><span>celda = % de grabs rehusados · color <i class="dot" style="background:{ramp(0.1)}"></i> bajo → <i class="dot" style="background:{ramp(0.5)}"></i> → <i class="dot" style="background:{ramp(0.9)}"></i> alto</span></div>
-    </div>
-    <p class="callout">El ranking de filas se sostiene en ambos idiomas y los cuatro modelos: arriba <strong>Health ({pct(DOM['Health'])})</strong>, abajo <strong>atención ({pct(DOM['Attentional'])})</strong>; ficción y diplomacia ({pct(CTX['Fiction'])}) bajan la guardia. Lo que cambia es la <strong>columna</strong>: la de Gemini es visiblemente más fría en español que en inglés — el modelo más permisivo es también el que más se degrada al cambiar de idioma.</p>
+    {"".join(lang_matrix_panel(l, with_legend=(idx == len(LANGS) - 1)) for idx, l in enumerate(LANGS))}
+    <p class="callout">El ranking de filas se sostiene en los <strong>cuatro idiomas</strong> y los cuatro modelos: arriba <strong>Health ({pct(DOM['Health'])})</strong>, abajo <strong>atención ({pct(DOM['Attentional'])})</strong>; ficción y diplomacia ({pct(CTX['Fiction'])}) bajan la guardia. Lo que cambia es la <strong>columna</strong>: el modelo más permisivo es también el que más se degrada al cambiar de idioma.</p>
   </section>
 
   <section>
@@ -282,17 +291,17 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
       <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:20px 0 10px">¿CUÁNTOS DE LOS 4 REHÚSAN CADA GRAB?</div>
       {disagree_bars()}
     </div>
-    <p class="callout">En <strong>{pct(disagree)}</strong> de los grabs los modelos <strong>no coinciden</strong>; solo <strong>{pct(allrefuse)}</strong> los atrapan los cuatro y <strong>{pct(allcomply)}</strong> los cumplen todos. El modo es la palanca más fuerte (±{std_mode*100:.0f} pts), pero la elección de modelo pesa casi igual (±{std_model*100:.0f} pts): para casi la mitad de los grabs, que te ayuden o no depende de qué modelo te toque. El idioma corre poco el accurate refusal por modelo — la mayor brecha es <strong>{nm(gap_model)} ({pct(SENS_L['es'][gap_model])} ES vs {pct(SENS_L['en'][gap_model])} EN)</strong>.</p>
+    <p class="callout">En <strong>{pct(disagree)}</strong> de los grabs los modelos <strong>no coinciden</strong>; solo <strong>{pct(allrefuse)}</strong> los atrapan los cuatro y <strong>{pct(allcomply)}</strong> los cumplen todos. El modo es la palanca más fuerte (±{std_mode*100:.0f} pts), pero la elección de modelo pesa casi igual (±{std_model*100:.0f} pts): para casi la mitad de los grabs, que te ayuden o no depende de qué modelo te toque. El idioma corre poco el accurate refusal por modelo — la mayor brecha entre idiomas es <strong>{nm(gap_model)} ({pct(SENS_L[gap_hi][gap_model])} {gap_hi.upper()} vs {pct(SENS_L[gap_lo][gap_model])} {gap_lo.upper()})</strong>.</p>
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">05</span><h2>¿Cambia algo el idioma?</h2><span class="q">ES vs. EN, pareado</span></div>
-    <p class="lede">Las mismas celdas, traducidas. El efecto es chico y consistente: en inglés rehúsa un poco más y nombra el daño más seguido.</p>
+    <div class="kicker"><span class="num mono">05</span><h2>¿Cambia algo el idioma?</h2><span class="q">4 idiomas, pareado</span></div>
+    <p class="lede">Las mismas 576 celdas, traducidas a cuatro idiomas. <strong>Sensibilidad</strong> = grabs rehusados; <strong>harm-flag</strong> = con qué frecuencia el modelo nombra el daño. El efecto del idioma es chico frente al del modelo o el modo.</p>
     <div class="panel">
-      <div class="row"><div class="row-label small">sensibilidad · ES</div><div class="track"><div class="bar" style="--w:{w(LANG['es']['sens'])}%;--c:#57B0A8"></div></div><div class="row-val mono">{pct(LANG['es']['sens'])}</div></div>
-      <div class="row"><div class="row-label small">sensibilidad · EN</div><div class="track"><div class="bar" style="--w:{w(LANG['en']['sens'])}%;--c:#C0503C"></div></div><div class="row-val mono">{pct(LANG['en']['sens'])}</div></div>
-      <div class="row"><div class="row-label small">harm-flag · ES</div><div class="track"><div class="bar" style="--w:{w(LANG['es']['harm'])}%;--c:#57B0A8"></div></div><div class="row-val mono">{pct(LANG['es']['harm'])}</div></div>
-      <div class="row"><div class="row-label small">harm-flag · EN</div><div class="track"><div class="bar" style="--w:{w(LANG['en']['harm'])}%;--c:#C0503C"></div></div><div class="row-val mono">{pct(LANG['en']['harm'])}</div></div>
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:8px">SENSIBILIDAD (GRABS REHUSADOS)</div>
+      {lang_metric_rows('sens')}
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:18px 0 8px">HARM-FLAG (NOMBRA EL DAÑO)</div>
+      {lang_metric_rows('harm')}
     </div>
   </section>
 
@@ -317,7 +326,7 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
       <li>{len(EMPTY)} respuestas vacías (truncadas por límite de tokens) excluidas. Pendiente: validar el juez con κ humano. Contexto AI-agent excluido del banco. Región todavía no es dimensión activa.</li>
     </ul>
   </div>
-  <footer>Power-Grab Refusal Benchmark · {len(R)} respuestas · 4 modelos × 576 prompts × ES/EN</footer>
+  <footer>Power-Grab Refusal Benchmark · {len(R)} respuestas · 4 modelos × 576 prompts × ES/EN/ZH/PT</footer>
 </div>
 '''
 open("results_report.html", "w").write(HTML)
