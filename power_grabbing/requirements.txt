@@ -4,4 +4,15 @@ inspect-ai>=0.3.50
 openai>=1.50
 # Provider SDK for direct (non-OpenRouter) Anthropic access, if you use it:
 # anthropic>=0.40
-matplotlib>=3.7  # figure1_dose_response.png
+
+# Analysis
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+scipy>=1.11
+statsmodels>=0.14
+seaborn>=0.13
+
+# Jupyter notebook support
+ipykernel>=6.0
+nbconvert>=7.0

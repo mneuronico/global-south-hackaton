@@ -7,3 +7,8 @@ __pycache__/
 
 *.log
 .DS_Store
+
+# translation working artifacts (intermediate; final banks are all_prompts_576_*.py)
+_trans/
+_en_prompts.json
+_translate_*.js

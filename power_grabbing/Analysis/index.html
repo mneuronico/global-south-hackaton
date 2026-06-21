@@ -1,0 +1,73 @@
+<meta charset="utf-8">
+<title>Power-Grab Refusal — todos los resultados</title>
+<style>
+:root{--ground:#181B24;--panel:#1E2230;--text:#E9E6DC;--muted:#9A9789;--accent:#C9A24B;--rule:#2C3140}
+*{box-sizing:border-box}body{margin:0;background:var(--ground);color:var(--text);font-family:-apple-system,system-ui,sans-serif;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding:0 28px 96px}
+.mast{padding:62px 0 30px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin:0 0 18px}
+h1{font-family:"Hoefler Text",Palatino,Georgia,serif;font-weight:600;font-size:clamp(30px,5vw,46px);line-height:1.06;margin:0 0 14px}
+.dek{font-size:16.5px;color:var(--muted);max-width:60ch;margin:0}
+h2{font-family:"Hoefler Text",Palatino,Georgia,serif;font-size:20px;margin:42px 0 4px}
+.grp{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0}
+a.card{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:16px 18px;margin-top:12px;transition:border-color .15s}
+a.card:hover{border-color:var(--accent)}
+.t{font-size:16px;color:var(--text);font-weight:600;margin:0 0 4px}
+.d{font-size:13.5px;color:var(--muted);margin:0}
+.star{border-left:3px solid var(--accent)}
+.path{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:var(--muted);margin-top:6px}
+footer{margin-top:46px;padding-top:18px;border-top:1px solid var(--rule);font-size:11.5px;color:var(--muted)}
+</style>
+<div class="wrap">
+  <header class="mast">
+    <p class="eyebrow">Global South AI Safety Hackathon · Power-Grab Refusal</p>
+    <h1>Todos los resultados</h1>
+    <p class="dek">Índice de los informes del benchmark de rechazo a la concentración de poder en MiniMax-M3 (juez ciego). Empezá por la síntesis.</p>
+  </header>
+
+  <h2>Síntesis</h2>
+  <p class="grp">todas las preguntas, un modelo</p>
+  <a class="card star" href="questions_report.html">
+    <p class="t">▸ Todas las preguntas de investigación</p>
+    <p class="d">Modo, escala, dominio, contexto, idioma, narrador-IA, modelo, usuario — cada una con el test estandarizado (pareado McNemar/conditional-logistic o GLMM cluster-robusto). Data del equipo (8 idiomas) + estudio IA.</p>
+    <p class="path">Analysis/questions_report.html</p>
+  </a>
+
+  <h2>Equipo — multilingüe (Dataset 1)</h2>
+  <p class="grp">8 idiomas × 576 celdas</p>
+  <a class="card" href="../results_report_8_lang.html">
+    <p class="t">▸ Reporte 8 idiomas</p>
+    <p class="d">Tasas de rechazo descriptivas por idioma / dimensión sobre el tensor completo.</p>
+    <p class="path">results_report_8_lang.html</p>
+  </a>
+  <a class="card" href="../results_report.html">
+    <p class="t">▸ Reporte inicial (ES/EN)</p>
+    <p class="d">Primer informe bilingüe: conducta, modo, escala (U), idioma, casos.</p>
+    <p class="path">results_report.html</p>
+  </a>
+
+  <h2>Estudio narrador-IA (pareado)</h2>
+  <p class="grp">mismo pedido, humano vs agente de IA</p>
+  <a class="card" href="../aiagent/reports/final_report_aiagent.html">
+    <p class="t">▸ Informe final — efecto narrador-IA</p>
+    <p class="d">Qué es el efecto y dónde ocurre. OR 1.65 intra-par (p=0.001); society/español sugestivos.</p>
+    <p class="path">aiagent/reports/final_report_aiagent.html</p>
+  </a>
+  <a class="card" href="../aiagent/reports/stats_report_aiagent.html">
+    <p class="t">▸ Modelo mixto (freq + bayes)</p>
+    <p class="d">Matched-pairs/conditional-logistic + GEE + GLMM bayesiano (robustez), por estrato.</p>
+    <p class="path">aiagent/reports/stats_report_aiagent.html</p>
+  </a>
+  <a class="card" href="../aiagent/reports/stats_report_aiagent_subgroups.html">
+    <p class="t">▸ Efecto por subgrupo</p>
+    <p class="d">Modificación por modo/escala/dominio/contexto/idioma + heterogeneidad.</p>
+    <p class="path">aiagent/reports/stats_report_aiagent_subgroups.html</p>
+  </a>
+  <a class="card" href="../aiagent/reports/results_report_aiagent.html">
+    <p class="t">▸ Descriptivo narrador-IA</p>
+    <p class="d">Humano vs IA: over-refusal, sensibilidad, por idioma, casos.</p>
+    <p class="path">aiagent/reports/results_report_aiagent.html</p>
+  </a>
+
+  <footer>Detalle de métodos y números: <code>aiagent/RESULTS_aiagent.md</code> · kit de stats: <code>Analysis/significance.py</code></footer>
+</div>

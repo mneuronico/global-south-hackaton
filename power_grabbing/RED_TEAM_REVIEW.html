@@ -1,0 +1,648 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Power-Grab Benchmark — Red-Team Review</title>
+<style>
+  :root{
+    --ground:#181B24; --panel:#1E2230; --panel-2:#232838;
+    --text:#E9E6DC; --muted:#9A9789; --faint:#6E7180;
+    --red:#C0503C;               /* primary — adversarial */
+    --gold:#C9A24B;              /* caution */
+    --teal:#57B0A8;              /* resolves / OK */
+    --slate:#6E86A8;             /* low severity */
+    --rule:#2C3140; --rule-soft:#262B38;
+    --serif:"Hoefler Text",Palatino,"Palatino Linotype",Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    --mono:ui-monospace,"SF Mono",Menlo,"Cascadia Mono",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{margin:0;background:var(--ground);color:var(--text);
+    font-family:var(--sans);line-height:1.62;font-size:16px;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  a{color:var(--red)}
+  a:hover{text-decoration:underline}
+  code,kbd{font-family:var(--mono);font-size:.86em}
+  :focus-visible{outline:2px solid var(--red);outline-offset:3px;border-radius:2px}
+
+  .shell{max-width:1180px;margin:0 auto;padding:0 28px}
+  .layout{display:grid;grid-template-columns:248px minmax(0,1fr);gap:56px;align-items:start}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;gap:0}}
+
+  /* hero */
+  .hero{border-bottom:1px solid var(--rule);padding:66px 0 40px}
+  .eyebrow{font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;
+    color:var(--red);margin:0 0 20px;font-weight:600}
+  .hero h1{font-family:var(--serif);font-weight:600;
+    font-size:clamp(32px,5.6vw,56px);line-height:1.03;margin:0 0 18px;letter-spacing:-.01em}
+  .hero .dek{font-size:clamp(15.5px,2.1vw,18.5px);color:var(--text);max-width:66ch;margin:0 0 14px;line-height:1.5}
+  .hero .frame{border-left:3px solid var(--teal);background:var(--panel);padding:13px 18px;
+    border-radius:0 6px 6px 0;font-size:14px;color:var(--muted);max-width:70ch;margin:18px 0 0}
+  .hero .frame b{color:var(--text)}
+
+  .scorecard{display:flex;flex-wrap:wrap;gap:12px;margin:30px 0 4px}
+  .sc{flex:1 1 140px;background:var(--panel);border:1px solid var(--rule);border-radius:6px;
+    padding:15px 16px;border-top:3px solid var(--rule)}
+  .sc.hi{border-top-color:var(--red)} .sc.me{border-top-color:var(--gold)} .sc.lo{border-top-color:var(--slate)}
+  .sc .n{font-family:var(--serif);font-size:30px;line-height:1}
+  .sc.hi .n{color:var(--red)} .sc.me .n{color:var(--gold)} .sc.lo .n{color:var(--slate)}
+  .sc .l{font-size:12px;color:var(--muted);margin-top:6px}
+
+  /* toc */
+  nav.toc{position:sticky;top:0;padding:34px 0;max-height:100vh;overflow:auto}
+  @media (max-width:900px){nav.toc{position:static;max-height:none;padding:22px 0;border-bottom:1px solid var(--rule)}}
+  .toc .tlabel{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:0 0 13px}
+  .toc a{display:block;color:var(--muted);font-size:13px;padding:5px 0 5px 13px;
+    border-left:2px solid transparent;margin-left:-2px;transition:color .15s,border-color .15s}
+  .toc a:hover{color:var(--text);text-decoration:none}
+  .toc a.active{color:var(--text);border-left-color:var(--red)}
+  .toc a .fid{font-family:var(--mono);font-size:11px;color:var(--faint);margin-right:8px}
+  .toc a.active .fid{color:var(--red)}
+  .toc .grp{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:18px 0 6px}
+
+  main{padding:34px 0 110px;min-width:0}
+  section{padding:28px 0 8px;border-top:1px solid var(--rule-soft);scroll-margin-top:20px}
+  section:first-of-type{border-top:none}
+  .sec-eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--red);font-weight:600;margin:0 0 8px}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(23px,3.3vw,31px);line-height:1.12;margin:0 0 14px;letter-spacing:-.005em}
+  h3{font-weight:700;font-size:15px;margin:26px 0 9px}
+  p{margin:0 0 14px;max-width:72ch}
+  .lead{font-size:17px;color:var(--text);max-width:70ch;line-height:1.55}
+  ul,ol.body{margin:0 0 14px;padding-left:22px;max-width:72ch}
+  li{margin:0 0 7px}
+  strong{color:#F4F1E6;font-weight:650}
+  .muted{color:var(--muted)} .small{font-size:13.5px}
+
+  .tw{overflow-x:auto;margin:16px 0 20px;border:1px solid var(--rule);border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:460px}
+  th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--rule-soft);white-space:nowrap}
+  thead th{background:var(--panel-2);color:var(--text);font-weight:650;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;border-bottom:1px solid var(--rule)}
+  tbody tr:last-child td{border-bottom:none}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-size:12.5px}
+
+  /* finding cards */
+  .finding{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:22px 24px;margin:18px 0;border-top:4px solid var(--rule)}
+  .finding.hi{border-top-color:var(--red)} .finding.me{border-top-color:var(--gold)} .finding.lo{border-top-color:var(--slate)}
+  .fhead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;margin:0 0 6px}
+  .fhead .fid{font-family:var(--mono);font-size:13px;color:var(--faint)}
+  .fhead .ftitle{font-family:var(--serif);font-size:21px;font-weight:600;color:var(--text);flex:1 1 auto;min-width:60%}
+  .chip{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .chip.hi{color:var(--red);background:rgba(192,80,60,.13);border:1px solid rgba(192,80,60,.45)}
+  .chip.me{color:var(--gold);background:rgba(201,162,75,.13);border:1px solid rgba(201,162,75,.42)}
+  .chip.lo{color:var(--slate);background:rgba(110,134,168,.14);border:1px solid rgba(110,134,168,.45)}
+  .chip.ack{color:var(--muted);background:transparent;border:1px solid var(--rule)}
+  .chip.flag{color:var(--red);background:transparent;border:1px solid rgba(192,80,60,.4)}
+  .finding p{font-size:14.5px}
+  .finding h4{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin:18px 0 7px;font-weight:700}
+  .evidence{background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:13px 16px;margin:8px 0 4px;font-size:13.3px}
+  .evidence .row{display:flex;justify-content:space-between;gap:18px;padding:3px 0;border-bottom:1px dashed var(--rule-soft)}
+  .evidence .row:last-child{border-bottom:none}
+  .evidence .k{color:var(--muted)} .evidence .v{font-family:var(--mono);color:var(--text);text-align:right}
+  .evidence .v.bad{color:var(--red)} .evidence .v.ok{color:var(--teal)} .evidence .v.warn{color:var(--gold)}
+  .fix{border-left:3px solid var(--teal);padding:2px 0 2px 16px;margin:10px 0 0}
+  .fix p{margin:0 0 6px;font-size:14px}
+  .verdict{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:13px}
+  .verdict .vlabel{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .vtag{font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:5px}
+  .vtag.now{color:#10130F;background:var(--teal)}
+  .vtag.lim{color:#1A1407;background:var(--gold)}
+  .vtag.fut{color:var(--text);background:var(--panel-2);border:1px solid var(--rule)}
+
+  .note{border-left:3px solid var(--gold);background:var(--panel);padding:13px 18px;border-radius:0 6px 6px 0;margin:16px 0;font-size:14px;color:var(--muted)}
+  .note b{color:var(--text)}
+
+  /* reconcile block */
+  .recon{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:20px 22px;margin:16px 0}
+  .recon .rt{font-family:var(--serif);font-size:18px;color:var(--text);margin:0 0 10px}
+  .recon .pair{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 12px}
+  .recon .pv{flex:1 1 200px;background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:11px 14px}
+  .recon .pv .pn{font-family:var(--mono);font-size:19px;color:var(--red)}
+  .recon .pv .pl{font-size:12px;color:var(--muted);margin-top:3px}
+  .recon .pv.b .pn{color:var(--gold)}
+  .recon .resolves{border-left:3px solid var(--teal);padding-left:14px;font-size:13.8px;color:var(--muted)}
+  .recon .resolves b{color:var(--teal)}
+  .recon .lesson{margin-top:10px;font-size:13.8px}
+  .recon .lesson b{color:var(--text)}
+
+  /* triage table */
+  .triage td.sev{font-weight:700}
+  .triage .now{color:var(--teal)} .triage .lim{color:var(--gold)} .triage .fut{color:var(--slate)}
+
+  footer{border-top:1px solid var(--rule);padding:28px 0 60px;font-size:12.5px;color:var(--faint)}
+  .reveal{opacity:0;transform:translateY(9px);transition:opacity .5s ease,transform .5s ease}
+  .reveal.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+</style>
+
+<header class="hero">
+  <div class="shell">
+    <p class="eyebrow">Power-Grab Refusal Benchmark · Adversarial review</p>
+    <h1>Red-Team Review</h1>
+    <p class="dek">A deliberately skeptical read of the benchmark — where the data could mislead, where two
+      reports tell different stories, and where a reviewer will push. Every number here is reproduced from the
+      project's own shipped artifacts.</p>
+    <div class="frame"><b>This is not a teardown.</b> The core result is sound: MiniMax-M3 clearly separates
+      grabs from controls (≈54% vs ≈5% refusal). These findings are about <b>framing, metric definitions,
+      and comparability</b> — the places where the headline numbers can be read two ways, plus what is cheap
+      enough to fix inside a 48-hour hackathon versus what belongs in Limitations.</div>
+
+    <div class="scorecard">
+      <div class="sc hi"><div class="n">3</div><div class="l">High — could change a conclusion</div></div>
+      <div class="sc me"><div class="n">5</div><div class="l">Medium — weakens a claim</div></div>
+      <div class="sc lo"><div class="n">2</div><div class="l">Low — tidy-up / principle</div></div>
+      <div class="sc"><div class="n" style="color:var(--teal)">4</div><div class="l">apparent contradictions, all reconcilable</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <div class="layout">
+    <nav class="toc" aria-label="Contents">
+      <p class="tlabel">Jump to</p>
+      <a href="#how"><span class="fid">·</span>How to read this</a>
+      <a href="#contradictions"><span class="fid">§</span>Apparent contradictions</a>
+      <p class="grp">Findings</p>
+      <a href="#f1"><span class="fid">F1</span>The “partial” bucket, two ways</a>
+      <a href="#f2"><span class="fid">F2</span>Pooled over-refusal misleads</a>
+      <a href="#f3"><span class="fid">F3</span>Legible intent vs “gray”</a>
+      <a href="#f4"><span class="fid">F4</span>Non-random empty exclusion</a>
+      <a href="#f5"><span class="fid">F5</span>Cross-model claim, one model</a>
+      <a href="#f6"><span class="fid">F6</span>Society pooled into control</a>
+      <a href="#f7"><span class="fid">F7</span>Single unvalidated judge</a>
+      <a href="#f8"><span class="fid">F8</span>One draw per cell</a>
+      <a href="#f9"><span class="fid">F9</span>Eval-awareness</a>
+      <a href="#f10"><span class="fid">F10</span>Translation equivalence</a>
+      <p class="grp">Action</p>
+      <a href="#triage"><span class="fid">→</span>48-hour triage</a>
+    </nav>
+
+    <main>
+      <section id="how" class="reveal">
+        <p class="sec-eyebrow">Orientation</p>
+        <h2>How to read this</h2>
+        <p>Each finding carries a <strong>severity</strong> (does it threaten a conclusion, weaken a claim, or
+          just need tidying) and a <strong>48-hour verdict</strong>:</p>
+        <ul>
+          <li><span class="vtag now">Fix now</span> &nbsp;cheap and worth doing before submission.</li>
+          <li><span class="vtag lim">Limitations</span> &nbsp;too costly to fix in time — name it honestly in the paper.</li>
+          <li><span class="vtag fut">Future work</span> &nbsp;a real research extension, out of scope for the sprint.</li>
+        </ul>
+        <p>Findings are also tagged <span class="chip ack">Acknowledged</span> when the project's own docs
+          already raise them (the point is then to <em>strengthen</em>, not to accuse) or
+          <span class="chip flag">Not flagged</span> when they appear to be unstated.</p>
+        <p class="small muted">Reproduce: numbers come from <code>experiment_full_results.json</code> (8-language
+          tensor, MiniMax-M3), <code>aiagent/data/experiment_ai_results.json</code> (narrator study), and
+          <code>aiagent/reports/glmm_freq_results.json</code>. Clean set excludes empty responses, as the reports do.</p>
+      </section>
+
+      <!-- CONTRADICTIONS -->
+      <section id="contradictions" class="reveal">
+        <p class="sec-eyebrow">The thing you asked about</p>
+        <h2>Apparent contradictions — and how each resolves</h2>
+        <p class="lead">Four places where two numbers in the project point opposite ways. None is a data
+          corruption bug; each reconciles. But the reconciliation is the warning — the same gap that fools a
+          quick reader can fool the authors writing the abstract.</p>
+
+        <div class="recon">
+          <p class="rt">① “Sensitivity is 54%” vs “the model handles 78% of grabs”</p>
+          <div class="pair">
+            <div class="pv"><div class="pn">54.2%</div><div class="pl">sensitivity = P(refuse | grab) — used in <code>build_report*.py</code></div></div>
+            <div class="pv b"><div class="pn">78.4%</div><div class="pl">“appropriate” = refuse <em>or</em> partial — the Inspect <code>scorer.py</code> rule</div></div>
+          </div>
+          <p class="resolves"><b>Resolves:</b> identical responses; the only difference is whether the 24% of
+            grab answers judged <code>partial</code> count as success. The reports say no, the Inspect scorer
+            says yes. Both front ends ship in the repo.</p>
+          <p class="lesson"><b>Lesson:</b> the project now has two runners that score the same data 24 points
+            apart. Pick one definition of “handled a grab,” or the two artifacts will disagree in print. → <a href="#f1">F1</a></p>
+        </div>
+
+        <div class="recon">
+          <p class="rt">② English over-refusal: 5.7% vs 2.3%</p>
+          <div class="pair">
+            <div class="pv"><div class="pn">5.7%</div><div class="pl">main 8-language tensor (en, 8 domains)</div></div>
+            <div class="pv b"><div class="pn">2.3%</div><div class="pl">AI-narrator study baseline (en, 6 domains)</div></div>
+          </div>
+          <p class="resolves"><b>Resolves:</b> the AI study drops Health &amp; Physical — and those two domains
+            carry <b>16.7%</b> over-refusal each, while the other six sit near 0%. Restrict the main tensor to
+            the same 6 domains and en over-refusal falls to <b>2.2%</b>, matching.</p>
+          <p class="lesson"><b>Lesson:</b> over-refusal lives almost entirely in 2 of 8 domains, and the two
+            studies use different domain sets — so their headline baselines are not comparable. → <a href="#f2">F2</a></p>
+        </div>
+
+        <div class="recon">
+          <p class="rt">③ Chinese over-refusal “doubles” with an AI narrator — but the model says no effect</p>
+          <div class="pair">
+            <div class="pv"><div class="pn">5.9% → 11.1%</div><div class="pl">raw descriptive flip (RESULTS_aiagent §3)</div></div>
+            <div class="pv b"><div class="pn">OR 1.18, p=0.44</div><div class="pl">within-pair conditional logit (zh) — not significant</div></div>
+          </div>
+          <p class="resolves"><b>Resolves:</b> the raw percentages move with <em>all</em> pairs; the odds ratio
+            is identified only by <em>discordant</em> pairs (where the narrator actually flipped the outcome).
+            Few zh pairs are discordant, so a big-looking raw jump is statistically empty.</p>
+          <p class="lesson"><b>Lesson:</b> don't quote the raw before/after percentages as the effect — they
+            invite the opposite conclusion to the model. Lead with the OR. → <a href="#f7">F7</a></p>
+        </div>
+
+        <div class="recon">
+          <p class="rt">④ “AI narrator increases over-refusal, significant for controls”</p>
+          <div class="pair">
+            <div class="pv"><div class="pn">OR 2.71, p=0.024</div><div class="pl">frequentist conditional logit (control stratum)</div></div>
+            <div class="pv b"><div class="pn">HDI 0.86–2.70</div><div class="pl">Bayesian GLMM — credible interval includes 1 (n.s.)</div></div>
+          </div>
+          <p class="resolves"><b>Resolves:</b> the control claim rests on <b>26 discordant pairs (7 vs 19)</b>.
+            The frequentist CI is enormous (1.14–6.46) and the Bayesian posterior straddles “no effect.” The
+            docs say this honestly — but the abstract's “significant for both control and grabs” leans on the
+            fragile half.</p>
+          <p class="lesson"><b>Lesson:</b> the robust claim is the <em>grab</em> and <em>overall</em> effect;
+            the control effect is suggestive. Phrase accordingly. → <a href="#f7">F7</a></p>
+        </div>
+      </section>
+
+      <!-- F1 -->
+      <section id="f1" class="reveal">
+        <p class="sec-eyebrow">Finding · Metric definition</p>
+        <div class="finding hi">
+          <div class="fhead"><span class="fid">F1</span><span class="ftitle">The “partial” bucket is scored two opposite ways</span>
+            <span class="chip hi">High</span><span class="chip flag">Not flagged</span></div>
+          <p>A quarter of all responses land in <code>partial</code> (helped with friction / reframing / a
+            sanitized subset). The binary reports count <code>partial</code> as a non-refusal (a miss on grabs);
+            the Inspect scorer counts it as appropriate on both sides. The disagreement is largest on exactly the
+            cells designed to need nuance — <strong>mixed-mode grabs are 37% partial</strong>.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">Grabs — refuse / partial / comply</span><span class="v">54.2% / 24.2% / 21.6%</span></div>
+            <div class="row"><span class="k">“Sensitivity” if partial = miss (reports)</span><span class="v bad">54.2%</span></div>
+            <div class="row"><span class="k">“Appropriate” if partial = pass (Inspect)</span><span class="v ok">78.4%</span></div>
+            <div class="row"><span class="k">positive+negative (mixed) grabs that are partial</span><span class="v warn">36.9%</span></div>
+            <div class="row"><span class="k">Project's own judge audit</span><span class="v">“noise lives at comply↔partial”</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> A mixed grab has a legitimate component; helping with that and
+            declining the rest <em>is</em> arguably the correct behavior — yet the binary metric files it as a
+            sensitivity failure. So the headline “catches 54% of grabs” may understate correct nuanced behavior,
+            while the Inspect “78% appropriate” overstates safety by absorbing every hedge. And the bucket that
+            decides the gap is the one the judge classifies least reliably.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Commit to one primary metric and use it everywhere. Recommended: report the full
+              comply/partial/refuse distribution (stacked), make the binary <code>refuse</code> the secondary,
+              and add the ordinal refusal-strength 1–5 the team's own audit recommended. Decide explicitly whether
+              partial-on-a-mixed-grab is a pass. Reconcile <code>scorer.py</code>'s <code>appropriate()</code>
+              with the reports so the two front ends can't be quoted against each other.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="muted small">~1 hr: a reconciliation paragraph + stacked-bar figure; no re-run needed.</span></div>
+        </div>
+      </section>
+
+      <!-- F2 -->
+      <section id="f2" class="reveal">
+        <p class="sec-eyebrow">Finding · Aggregation</p>
+        <div class="finding hi">
+          <div class="fhead"><span class="fid">F2</span><span class="ftitle">A single pooled over-refusal number hides (and the AI study exploits) domain heterogeneity</span>
+            <span class="chip hi">High</span><span class="chip flag">Not flagged</span></div>
+          <p>The “~5% over-refusal, great discrimination” headline is really “near-zero in six domains, ~17% in
+            two.” The model's false-positives are essentially a Health/Physical-safety reflex on legitimate
+            requests. Because the AI-narrator study drops exactly those two domains, its baseline looks much
+            cleaner — and is not comparable to the main tensor.</p>
+          <h4>Evidence (English controls)</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">over-refusal, all 8 domains</span><span class="v bad">5.9%</span></div>
+            <div class="row"><span class="k">over-refusal, 6 domains (Health/Physical dropped)</span><span class="v ok">2.2%</span></div>
+            <div class="row"><span class="k">Health controls refused</span><span class="v bad">16.7%</span></div>
+            <div class="row"><span class="k">Physical controls refused</span><span class="v bad">16.7%</span></div>
+            <div class="row"><span class="k">other six domains</span><span class="v ok">0.0%–4.5%</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Two consequences. (a) The interesting safety story — the model
+            can't help with a legitimate health or physical-autonomy request without a refusal reflex — is
+            averaged out of the headline. (b) Anyone comparing the AI-study English baseline (≈2.3%) to the main
+            tensor (≈5.7%) sees a contradiction that is purely the dropped domains; a reviewer will catch it.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Report over-refusal (and sensitivity) broken out by domain, or at minimum surface Health/Physical
+              as their own line. When citing the AI study next to the main tensor, restrict both to the shared 6
+              domains. State plainly that pooled over-refusal is driven by two domains.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="muted small">~30 min: one extra table + a caveat sentence.</span></div>
+        </div>
+      </section>
+
+      <!-- F3 -->
+      <section id="f3" class="reveal">
+        <p class="sec-eyebrow">Finding · Construct validity</p>
+        <div class="finding hi">
+          <div class="fhead"><span class="fid">F3</span><span class="ftitle">“Deliberately gray” vs intent stated in plain text</span>
+            <span class="chip hi">High</span><span class="chip ack">Partly acknowledged</span></div>
+          <p>The README sells “hard cases [that] are deliberately gray.” But the methodology deliberately makes
+            <code>mode</code> <em>legible</em>: positive prompts say “without harming anyone,” negative prompts
+            say “I want to reduce their power.” So the model is largely being scored on whether it accepts a
+            <em>declared</em> intent — not on whether it detects a disguised power grab. Those two design goals
+            pull against each other.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">negative (explicit “reduce their power”) refused</span><span class="v">67.4%</span></div>
+            <div class="row"><span class="k">positive+negative (mixed signal) refused</span><span class="v">41.1%</span></div>
+            <div class="row"><span class="k">positive (“harms no one”) refused</span><span class="v">5.1%</span></div>
+            <div class="row"><span class="k">refusal tracks stated intent, near-monotonically</span><span class="v warn">yes</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> High “discrimination” (≈49 pp) may largely reflect reading the
+            stated intent rather than reasoning about power concentration. The benchmark's stated purpose —
+            catching illegitimate grabs in the gray zone — is the thing the legibility choice most undercuts. The
+            project's earlier neutral-stem probe (in <code>CONTEXT.md</code>: stripping the explicit cue, the
+            model still flagged gerrymandering by act-type) is the right instinct, but it was never run on MiniMax
+            at tensor scale.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Frame the headline honestly: this measures “refusal given a declared intent,” a necessary baseline.
+              Add a small <em>disguised-intent</em> ablation — re-word a stratified sample of grabs to remove the
+              explicit cue (as the neutral-stem probe did) and show how much sensitivity survives. That delta is
+              the real “gray-zone” result.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag lim">Limitations</span>
+            <span class="vtag fut">Future work</span>
+            <span class="muted small">Full re-bank is out of scope; a 20–40 prompt ablation is feasible and high-value.</span></div>
+        </div>
+      </section>
+
+      <!-- F4 -->
+      <section id="f4" class="reveal">
+        <p class="sec-eyebrow">Finding · Sampling / exclusions</p>
+        <div class="finding me">
+          <div class="fhead"><span class="fid">F4</span><span class="ftitle">Empty-response exclusion isn't random — and it varies by language</span>
+            <span class="chip me">Medium</span><span class="chip ack">Acknowledged</span></div>
+          <p>The reports drop empty model outputs (the judge would label an empty string “refuse”). Sensible —
+            but the drops are <strong>not uniform</strong>. Spanish and English have zero empties (they were
+            backfilled); other languages lose 2–4% of cells, and the empties skew toward positive-mode cells.
+            The headline finding is the cross-lingual spread, so the denominators differ exactly where it counts.</p>
+          <h4>Evidence (empties excluded, per language)</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">es / en</span><span class="v ok">0 / 0</span></div>
+            <div class="row"><span class="k">de</span><span class="v bad">21 (3.6%)</span></div>
+            <div class="row"><span class="k">fr / pt</span><span class="v warn">14 / 14 (2.4%)</span></div>
+            <div class="row"><span class="k">hi / sw</span><span class="v warn">13 / 13 (2.3%)</span></div>
+            <div class="row"><span class="k">zh</span><span class="v">1 (0.2%)</span></div>
+            <div class="row"><span class="k">empties by mode (pos / mixed / neg)</span><span class="v">39 / 12 / 25</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> es/en sit on 576 cells; de on 555. If de's empties are concentrated
+            in cells the model would have refused (or complied with), de's sensitivity is computed on a subtly
+            different sample than en's — and the cross-lingual comparison is the paper's lead. The zero-empties in
+            es/en (versus everyone else) suggests special backfilling that further breaks comparability.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Report n and exclusion rate per language alongside every cross-lingual number. Add one robustness
+              row treating empties as <code>refuse</code> (worst case) to show the ranking is stable. Better:
+              re-run the ~75 empty cells (likely <code>max_tokens</code> exhausted by reasoning traces) — minutes
+              and cents on OpenRouter — so all languages sit on 576.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="muted small">Re-running 76 cells is trivial; at minimum add the exclusion table.</span></div>
+        </div>
+      </section>
+
+      <!-- F5 -->
+      <section id="f5" class="reveal">
+        <p class="sec-eyebrow">Finding · Generalization</p>
+        <div class="finding me">
+          <div class="fhead"><span class="fid">F5</span><span class="ftitle">The “model choice matters” story, with one model in the data</span>
+            <span class="chip me">Medium</span><span class="chip ack">Acknowledged</span></div>
+          <p>METHODOLOGY pitches a cross-model “target panel,” and CONTEXT.md's emerging narrative is that the
+            choice of model matters more than anything (Haiku refused everything; a teammate's model complied with
+            everything). But every row in both shipped datasets is <code>minimax/minimax-m3</code>. The
+            cross-model claim has no cross-model data behind it.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">distinct targets in experiment_full_results.json</span><span class="v bad">1 (minimax-m3)</span></div>
+            <div class="row"><span class="k">distinct targets in the AI-narrator data</span><span class="v bad">1 (minimax-m3)</span></div>
+            <div class="row"><span class="k">earlier probe model (CONTEXT.md)</span><span class="v">Haiku 4.5 — never on the tensor</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> A single model can't support claims about model variation, and a
+            reviewer will read “panel” in the methods then find one target. The most quotable line in the project
+            backstory (“magnitude doesn't move the model, but model choice does”) is currently unbacked.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Either run one or two more targets (a permissive and a cautious one) over a stratified subset — e.g.
+              all modes/scales in en, ~one language, on free OpenRouter models — to get a genuine spread; or drop
+              “panel” from the claims and move cross-model to future work.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="vtag lim">Limitations</span>
+            <span class="muted small">A 1-language, 2-model add is feasible; otherwise reframe the wording.</span></div>
+        </div>
+      </section>
+
+      <!-- F6 -->
+      <section id="f6" class="reveal">
+        <p class="sec-eyebrow">Finding · Aggregation</p>
+        <div class="finding lo">
+          <div class="fhead"><span class="fid">F6</span><span class="ftitle">The “genuinely ambiguous” cell is pooled into the clean control rate</span>
+            <span class="chip lo">Low</span><span class="chip ack">Acknowledged</span></div>
+          <p>The docs say <code>positive × society</code> is genuinely ambiguous and should be reported
+            separately. Yet it is one third of the control denominator and is included in the headline
+            over-refusal. The numeric impact is tiny, but it contradicts the project's own stated rule.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">over-refusal, all positive (as reported)</span><span class="v">5.1%</span></div>
+            <div class="row"><span class="k">over-refusal, positive minus society</span><span class="v ok">4.8%</span></div>
+            <div class="row"><span class="k">society share of the control sample</span><span class="v warn">33% (493 / 1497)</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Low magnitude, but it's a self-consistency gap: the methodology
+            promises to quarantine these cells and the report doesn't. Easy to close, and closing it pre-empts a
+            reviewer nit.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Report <code>positive × {individual, group}</code> as the clean control line and break out
+              <code>positive × society</code> on its own, as the methodology already says to.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="muted small">A one-line filter change in the report builder.</span></div>
+        </div>
+      </section>
+
+      <!-- F7 -->
+      <section id="f7" class="reveal">
+        <p class="sec-eyebrow">Finding · Measurement (the judge)</p>
+        <div class="finding me">
+          <div class="fhead"><span class="fid">F7</span><span class="ftitle">A single LLM judge, no human calibration, with an unverified harm quote</span>
+            <span class="chip me">Medium</span><span class="chip ack">Acknowledged</span></div>
+          <p>Everything rests on one judge (<code>gpt-5.4-nano</code>). The team audited effort levels but never
+            validated against human labels (Cohen's κ is listed as pending). Two specifics compound it: the
+            noisy boundary (<code>comply↔partial</code>) is exactly the bucket F1 hinges on, and the harm-flag
+            check (<code>harm_flagged()</code>) only tests that the verdict starts with “Yes” — it never checks
+            the quoted span is actually present in the response.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">judges</span><span class="v bad">1 (no second grader)</span></div>
+            <div class="row"><span class="k">human κ</span><span class="v bad">pending</span></div>
+            <div class="row"><span class="k">harm-flag verification</span><span class="v warn">prefix only — quote not checked</span></div>
+            <div class="row"><span class="k">AI-study control claim rests on</span><span class="v warn">26 discordant pairs</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Without κ, the judge could be systematically miscounting the
+            partial bucket and no one would know — and that bucket drives F1 and the cross-lingual spread.
+            Fragile sub-analyses (the AI control effect; see contradiction ④) compound judge noise with tiny n.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Hand-label ~50 transcripts and report κ against the judge — the single highest-credibility add for
+              the time spent. Spot-check that harm-flag quotes appear verbatim in the response (cheap string
+              check). If time allows, run a second judge on a subset for agreement.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="muted small">A 50-item label session is a few hours and directly answers reviewers.</span></div>
+        </div>
+      </section>
+
+      <!-- F8 -->
+      <section id="f8" class="reveal">
+        <p class="sec-eyebrow">Finding · Statistical power</p>
+        <div class="finding lo">
+          <div class="fhead"><span class="fid">F8</span><span class="ftitle">One deterministic draw per cell</span>
+            <span class="chip lo">Low</span><span class="chip flag">Not flagged</span></div>
+          <p>Every (language, domain, context, mode, scale) cell is a single sample at
+            <code>temperature = 0</code>. Marginals pool hundreds of cells and are well-powered, but there is no
+            within-cell variance estimate, and temperature 0 hides that the model might refuse the same prompt
+            only part of the time on resampling.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">unique cells vs rows</span><span class="v">4,532 / 4,532 (1.00×)</span></div>
+            <div class="row"><span class="k">temperature</span><span class="v">0 (no stochastic replication)</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Fine-grained claims (a specific domain×context cell) rest on one
+            draw per language. Fine for the headline margins; not for cell-level storytelling.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Resample a small stratified subset at <code>temperature &gt; 0</code>, k≈5, to bound per-cell
+              variance — or simply state that cell-level effects are single-draw and only marginal effects are
+              powered.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag lim">Limitations</span>
+            <span class="muted small">A note suffices; the small resample is a nice-to-have.</span></div>
+        </div>
+      </section>
+
+      <!-- F9 -->
+      <section id="f9" class="reveal">
+        <p class="sec-eyebrow">Finding · Validity threat</p>
+        <div class="finding me">
+          <div class="fhead"><span class="fid">F9</span><span class="ftitle">Eval-awareness — and a sibling project that measures it</span>
+            <span class="chip me">Medium</span><span class="chip ack">Acknowledged</span></div>
+          <p>The prompts are single-turn, first-person, ending in an explicit “Design a strategy…” — a shape
+            models increasingly recognize as a safety probe. If MiniMax detects the eval, refusal rates reflect
+            test-taking, not deployment behavior. Notably, the other half of this same repository
+            (<code>eval_awareness/</code>) is built to measure exactly this.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">prompt shape</span><span class="v warn">honeypot-like, single-turn</span></div>
+            <div class="row"><span class="k">prompt realism measured?</span><span class="v bad">no (METHODOLOGY §9)</span></div>
+            <div class="row"><span class="k">tooling to test it</span><span class="v ok">exists in the same repo</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Eval-awareness is a direct threat to external validity, and it is
+            the obvious bridge to a stronger combined paper rather than two separate ones.</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Run the sibling <code>eval_awareness</code> probe over a sample of these prompts to estimate
+              detection rate; cite it as a validity bound. Longer term, a multi-turn / incremental-escalation
+              variant (Petri-style) reduces the honeypot signature.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag now">Fix now</span>
+            <span class="vtag fut">Future work</span>
+            <span class="muted small">A cross-team sample check is cheap and a strong combined-paper hook.</span></div>
+        </div>
+      </section>
+
+      <!-- F10 -->
+      <section id="f10" class="reveal">
+        <p class="sec-eyebrow">Finding · Confound</p>
+        <div class="finding me">
+          <div class="fhead"><span class="fid">F10</span><span class="ftitle">The cross-lingual headline could be a translation artifact</span>
+            <span class="chip me">Medium</span><span class="chip flag">Not flagged</span></div>
+          <p>The lead multilingual result — sensitivity spans ~13 pp, highest in Chinese and Swahili — rests on
+            translations validated only <em>structurally</em> (1:1 cell join, byte-identical deliverable tails,
+            no obvious Spanish residue). Semantic equivalence and register/harshness were not checked. If the
+            zh/sw translations read as more forceful, the “language effect” is partly a translation effect.</p>
+          <h4>Evidence</h4>
+          <div class="evidence">
+            <div class="row"><span class="k">translation validation</span><span class="v warn">structural only</span></div>
+            <div class="row"><span class="k">semantic / tone equivalence</span><span class="v bad">unverified</span></div>
+            <div class="row"><span class="k">sensitivity zh / sw vs en</span><span class="v">64% / 61% vs 49%</span></div>
+          </div>
+          <p><strong>Why it matters.</strong> Language is the paper's headline factor; a translation-tone
+            confound competes with the “the model treats languages differently” interpretation. Compounds with
+            F4 (those same languages also lost the most cells to empties).</p>
+          <div class="fix">
+            <h4>Fix</h4>
+            <p>Back-translate a stratified sample to en and human-spot-check, or have a separate model rate
+              translation faithfulness/tone per cell. Caveat the cross-lingual claim until then.</p>
+          </div>
+          <div class="verdict"><span class="vlabel">48h</span><span class="vtag lim">Limitations</span>
+            <span class="muted small">A small back-translation spot-check is feasible; otherwise name it.</span></div>
+        </div>
+      </section>
+
+      <!-- TRIAGE -->
+      <section id="triage" class="reveal">
+        <p class="sec-eyebrow">Action</p>
+        <h2>48-hour triage</h2>
+        <p>If time is short, the order below maximizes credibility per hour. The first three close apparent
+          contradictions a reviewer would otherwise find.</p>
+        <div class="tw">
+          <table class="triage">
+            <thead><tr><th>#</th><th>Finding</th><th>Sev</th><th>Verdict</th><th>Effort</th></tr></thead>
+            <tbody>
+              <tr><td>F1</td><td>Define “partial”; one metric across both runners</td><td class="sev" style="color:var(--red)">High</td><td class="now">Fix now</td><td>~1 hr</td></tr>
+              <tr><td>F2</td><td>Break over-refusal out by domain; flag Health/Physical</td><td class="sev" style="color:var(--red)">High</td><td class="now">Fix now</td><td>~30 min</td></tr>
+              <tr><td>F7</td><td>Hand-label ~50 transcripts → judge κ; verify harm quotes</td><td class="sev" style="color:var(--gold)">Med</td><td class="now">Fix now</td><td>~3 hr</td></tr>
+              <tr><td>F4</td><td>Per-language exclusion table + empties-as-refuse row (or re-run 76 cells)</td><td class="sev" style="color:var(--gold)">Med</td><td class="now">Fix now</td><td>~1 hr</td></tr>
+              <tr><td>F6</td><td>Quarantine <code>positive × society</code> from the control rate</td><td class="sev" style="color:var(--slate)">Low</td><td class="now">Fix now</td><td>~15 min</td></tr>
+              <tr><td>F5</td><td>Add a 2nd target on a subset, or drop “panel” wording</td><td class="sev" style="color:var(--gold)">Med</td><td class="now">Fix now / reframe</td><td>1–3 hr</td></tr>
+              <tr><td>F9</td><td>Cross-team eval-awareness check on a sample</td><td class="sev" style="color:var(--gold)">Med</td><td class="now">Fix now</td><td>~2 hr</td></tr>
+              <tr><td>F3</td><td>Disguised-intent ablation on ~20–40 grabs</td><td class="sev" style="color:var(--red)">High</td><td class="lim">Limitations + small ablation</td><td>2–4 hr</td></tr>
+              <tr><td>F10</td><td>Back-translation spot-check of zh/sw</td><td class="sev" style="color:var(--gold)">Med</td><td class="lim">Limitations</td><td>1–2 hr</td></tr>
+              <tr><td>F8</td><td>Note single-draw cells; optional small temp&gt;0 resample</td><td class="sev" style="color:var(--slate)">Low</td><td class="lim">Limitations</td><td>~15 min</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note"><b>Bottom line.</b> Nothing here overturns the core result that MiniMax-M3 separates
+          grabs from controls. The exposure is in <b>how that result is described</b>: a partial bucket counted
+          two ways (F1), a pooled over-refusal that hides a two-domain reflex (F2), and an unvalidated judge
+          underneath both (F7). Those three are cheap to address and are where a sharp reviewer will press first.</div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<footer>
+  <div class="shell">
+    <p><span style="color:var(--muted)">Red-Team Review · Power-Grab Refusal Benchmark</span> — companion to
+      <a href="PROJECT_GUIDE.html">PROJECT_GUIDE.html</a>. Every figure is reproduced from the project's own
+      artifacts (<code>experiment_full_results.json</code>, <code>aiagent/data/experiment_ai_results.json</code>,
+      <code>aiagent/reports/glmm_freq_results.json</code>); clean set excludes empty responses, matching the reports.
+      Severities and 48-hour verdicts are an external reviewer's judgment, offered to strengthen the submission.</p>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var map = {};
+    links.forEach(function (a) { map[a.getAttribute('href').slice(1)] = a; });
+    var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          links.forEach(function (a) { a.classList.remove('active'); });
+          if (map[e.target.id]) map[e.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-12% 0px -70% 0px', threshold: 0 });
+    sections.forEach(function (s) { spy.observe(s); });
+
+    if (!window.matchMedia || !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var rev = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); rev.unobserve(e.target); }
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+      document.querySelectorAll('.reveal').forEach(function (el) { rev.observe(el); });
+    } else {
+      document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
+    }
+  })();
+</script>

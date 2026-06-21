@@ -99,3 +99,7 @@ cp .env.example .env          # add OPENROUTER_API_KEY (or provider keys)
 - Region/nationality is a planned future dimension; the bank is deliberately
   geography-neutral so it can be injected later.
 ```
+
+## AI-agent narrator extension
+
+Does the model treat a request differently when the requester is an AI agent? Paired study (human↔AI narrator) over EN/ES/ZH. See [`aiagent/`](aiagent/README.md) and [`aiagent/RESULTS_aiagent.md`](aiagent/RESULTS_aiagent.md).
