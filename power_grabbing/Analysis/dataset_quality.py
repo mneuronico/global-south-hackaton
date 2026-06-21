@@ -30,7 +30,7 @@ DOMAINS   = ["Rank", "Wealth", "Health", "Legal", "Physical", "Epistemic", "Stat
 CONTEXTS  = ["Fiction", "Work", "Government", "Interpersonal", "Diplomacy", "Academia", "Markets", "Media"]
 MODES     = ["positive", "negative", "positive+negative"]
 SCALES    = ["individual", "group", "society"]
-LANGS     = ["es", "en"]
+LANGS     = ["de", "en", "es", "fr", "hi", "pt", "sw", "zh"]
 BEHAVIORS = ["comply", "partial", "refuse"]
 
 
@@ -38,25 +38,55 @@ BEHAVIORS = ["comply", "partial", "refuse"]
 # Data loading
 # ---------------------------------------------------------------------------
 
-_CLEAN_CSV = Path(__file__).parent / "data" / "experiment_results_clean.csv"
+_CLEAN_CSV   = Path(__file__).parent / "data" / "dataset1.csv"
+_PROMPTS_DIR = _ROOT / "prompts"
 
 def load_results(path: str | Path = _CLEAN_CSV) -> pd.DataFrame:
     df = pd.read_csv(path)
+    # refused: 0/1/NaN — partial is coded 0 (not refused) by design
     if "refused" not in df.columns:
-        df["refused"] = (df["behavior"] == "refuse").astype(int)
+        df["refused"] = (df["behavior"] == "refuse").astype(float)
+    else:
+        df["refused"] = pd.to_numeric(df["refused"], errors="coerce")
+    # harm_flagged: bool/NaN — re-derive from harm_acknowledgment if absent
     if "harm_flagged" not in df.columns:
         df["harm_flagged"] = df["harm_acknowledgment"].str.strip().str.lower().str.startswith("yes")
+    # grab: int 0/1 — 1 = power-grabbing (negative or positive+negative mode), 0 = legitimate (positive mode)
     if "grab" not in df.columns:
         df["grab"] = (~df["legit"]).astype(int)
+    else:
+        df["grab"] = df["grab"].astype(int)
     return df
 
 
-def load_prompts(path: str | Path = _ROOT / "all_prompts_576.py") -> pd.DataFrame:
-    """Parse PROMPTS_576 list from the .py file into a DataFrame."""
-    ns: dict = {}
-    exec(open(path).read(), ns)
-    rows = ns["PROMPTS_576"]
-    return pd.DataFrame(rows, columns=["domain", "context", "mode", "scale", "prompt"])
+def load_prompts(prompts_dir: str | Path = _PROMPTS_DIR) -> pd.DataFrame:
+    """Load all 8 per-language prompt files and combine into a single DataFrame.
+
+    Each file contributes 576 rows; combined = 4 608 rows with a lang column.
+    File mapping:
+      all_prompts_576.py      → es  (variable PROMPTS_576)
+      all_prompts_576_XX.py   → XX  (variable PROMPTS_576_XX, uppercased)
+    """
+    prompts_dir = Path(prompts_dir)
+    lang_files = {
+        "es": (prompts_dir / "all_prompts_576.py",    "PROMPTS_576"),
+        "de": (prompts_dir / "all_prompts_576_de.py", "PROMPTS_576_DE"),
+        "en": (prompts_dir / "all_prompts_576_en.py", "PROMPTS_576_EN"),
+        "fr": (prompts_dir / "all_prompts_576_fr.py", "PROMPTS_576_FR"),
+        "hi": (prompts_dir / "all_prompts_576_hi.py", "PROMPTS_576_HI"),
+        "pt": (prompts_dir / "all_prompts_576_pt.py", "PROMPTS_576_PT"),
+        "sw": (prompts_dir / "all_prompts_576_sw.py", "PROMPTS_576_SW"),
+        "zh": (prompts_dir / "all_prompts_576_zh.py", "PROMPTS_576_ZH"),
+    }
+    frames = []
+    for lang, (fpath, varname) in lang_files.items():
+        ns: dict = {}
+        exec(open(fpath).read(), ns)
+        rows = ns[varname]
+        df = pd.DataFrame(rows, columns=["domain", "context", "mode", "scale", "prompt"])
+        df.insert(0, "lang", lang)
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -64,10 +94,10 @@ def load_prompts(path: str | Path = _ROOT / "all_prompts_576.py") -> pd.DataFram
 # ---------------------------------------------------------------------------
 
 def tensor_coverage(prompts: pd.DataFrame) -> dict:
-    """Check completeness of the 576-cell design tensor."""
-    expected = len(DOMAINS) * len(CONTEXTS) * len(MODES) * len(SCALES)
+    """Check completeness of the 4 608-cell design tensor (576 base × 8 languages)."""
+    expected = len(DOMAINS) * len(CONTEXTS) * len(MODES) * len(SCALES) * len(LANGS)
     actual   = len(prompts)
-    combos   = prompts[["domain", "context", "mode", "scale"]].apply(tuple, axis=1)
+    combos   = prompts[["lang", "domain", "context", "mode", "scale"]].apply(tuple, axis=1)
     unique   = combos.nunique()
     dups     = int((combos.duplicated()).sum())
     return {
@@ -141,7 +171,7 @@ def discrimination_score(df: pd.DataFrame) -> dict:
     - spread:  std of per-prompt refusal rates across dimensions
     - entropy: Shannon entropy of the overall behavior distribution (max = log2(3) ≈ 1.585)
     """
-    rates = df.groupby(["domain", "context", "mode", "scale"])["refused"].mean()
+    rates = df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"].mean()
     overall_dist = df["behavior"].value_counts(normalize=True).reindex(BEHAVIORS, fill_value=0)
     H = float(scipy_entropy(overall_dist, base=2))
     return {
@@ -158,7 +188,7 @@ def discrimination_score(df: pd.DataFrame) -> dict:
 
 
 def plot_refusal_rate_histogram(df: pd.DataFrame, ax: plt.Axes | None = None) -> plt.Axes:
-    rates = df.groupby(["domain", "context", "mode", "scale"])["refused"].mean()
+    rates = df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"].mean()
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 4))
     ax.hist(rates, bins=20, range=(0, 1), color="#444444", edgecolor="white")
@@ -221,13 +251,17 @@ def judge_consistency(df: pd.DataFrame) -> dict:
       - refuse + harm_flagged=False (refused but gave no reason)
     Also reports harm_flag rates per behavior bucket.
     """
+    hf_num = pd.to_numeric(df["harm_flagged"], errors="coerce")
+    hf     = hf_num.fillna(0).astype(bool)
     comply_mask = df["behavior"] == "comply"
     refuse_mask = df["behavior"] == "refuse"
 
-    comply_but_harm = int((comply_mask & df["harm_flagged"]).sum())
-    refuse_no_harm  = int((refuse_mask & ~df["harm_flagged"]).sum())
+    comply_but_harm = int((comply_mask & hf).sum())
+    refuse_no_harm  = int((refuse_mask & ~hf).sum())
 
-    harm_by_beh = df.groupby("behavior")["harm_flagged"].mean().round(3).to_dict()
+    harm_by_beh = df.groupby("behavior")[["harm_flagged"]].apply(
+        lambda g: pd.to_numeric(g["harm_flagged"], errors="coerce").mean()
+    ).round(3).to_dict()
 
     return {
         "comply_but_harm_flagged":    comply_but_harm,
@@ -261,7 +295,7 @@ def item_difficulty(df: pd.DataFrame) -> pd.DataFrame:
     Per-cell refusal rate with Wilson CI.
     Cells with rate near 0 or 1 are low-information items (too easy or too hard).
     """
-    g = (df.groupby(["domain", "context", "mode", "scale"])["refused"]
+    g = (df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"]
            .agg(["sum", "count"])
            .reset_index()
            .rename(columns={"sum": "refusals", "count": "n"}))
