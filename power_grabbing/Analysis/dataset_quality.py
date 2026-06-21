@@ -4,7 +4,7 @@ Dataset quality evaluation for the power-grabbing benchmark.
 Covers five dimensions:
   1. Coverage & balance    — tensor completeness, per-cell counts
   2. Discrimination power  — does the benchmark spread scores, or hit ceiling/floor?
-  3. Construct validity    — do design variables (mode, legit) predict behavior as expected?
+  3. Construct validity    — do design variables (mode, disempow) predict behavior as expected?
   4. Judge consistency     — internal contradictions between judge fields
   5. Item difficulty       — entropy of behavior distribution per cell/dimension
 """
@@ -51,11 +51,11 @@ def load_results(path: str | Path = _CLEAN_CSV) -> pd.DataFrame:
     # harm_flagged: bool/NaN — re-derive from harm_acknowledgment if absent
     if "harm_flagged" not in df.columns:
         df["harm_flagged"] = df["harm_acknowledgment"].str.strip().str.lower().str.startswith("yes")
-    # grab: int 0/1 — 1 = power-grabbing (negative or positive+negative mode), 0 = legitimate (positive mode)
-    if "grab" not in df.columns:
-        df["grab"] = (~df["legit"]).astype(int)
+    # disempow: int 0/1 — 1 = power-grabbing (negative or positive+negative mode), 0 = legitimate (positive mode)
+    if "disempow" not in df.columns:
+        df["disempow"] = (df["mode"] != "positive").astype(int)
     else:
-        df["grab"] = df["grab"].astype(int)
+        df["disempow"] = df["disempow"].astype(int)
     return df
 
 
@@ -153,7 +153,7 @@ def behavior_distribution(df: pd.DataFrame) -> pd.DataFrame:
              **{b: (df["behavior"] == b).mean() for b in BEHAVIORS}}]
     for dim, vals in [("domain", DOMAINS), ("context", CONTEXTS),
                       ("mode", MODES), ("scale", SCALES), ("lang", LANGS),
-                      ("legit", [True, False])]:
+                      ("disempow", [0, 1])]:
         for v in vals:
             sub = df[df[dim] == v]
             if len(sub) == 0:
@@ -209,27 +209,27 @@ def construct_validity(df: pd.DataFrame) -> pd.DataFrame:
     """
     Tests directional hypotheses baked into the design:
       H1: negative mode → higher refusal than positive
-      H2: legit=False (grab) → higher refusal than legit=True
+      H2: disempow=1 (power-grabbing) → higher refusal than disempow=0
       H3: positive+negative → intermediate between positive and negative
     Returns a summary table with rates and a pass/fail column.
     """
     rate = lambda mask: df.loc[mask, "refused"].mean()
 
-    r_neg  = rate(df["mode"] == "negative")
-    r_pos  = rate(df["mode"] == "positive")
-    r_both = rate(df["mode"] == "positive+negative")
-    r_grab = rate(~df["legit"])
-    r_legit = rate(df["legit"])
+    r_neg      = rate(df["mode"] == "negative")
+    r_pos      = rate(df["mode"] == "positive")
+    r_both     = rate(df["mode"] == "positive+negative")
+    r_disempow = rate(df["disempow"] == 1)
+    r_legit    = rate(df["disempow"] == 0)
 
     rows = [
         {"hypothesis": "H1: negative > positive",
          "value_a": "negative", "rate_a": r_neg,
          "value_b": "positive", "rate_b": r_pos,
          "direction_correct": r_neg > r_pos},
-        {"hypothesis": "H2: grab > legit",
-         "value_a": "grab (legit=F)", "rate_a": r_grab,
-         "value_b": "legit (legit=T)", "rate_b": r_legit,
-         "direction_correct": r_grab > r_legit},
+        {"hypothesis": "H2: disempow > legit",
+         "value_a": "disempow=1", "rate_a": r_disempow,
+         "value_b": "disempow=0", "rate_b": r_legit,
+         "direction_correct": r_disempow > r_legit},
         {"hypothesis": "H3: positive+negative between pos and neg",
          "value_a": "positive+negative", "rate_a": r_both,
          "value_b": "positive & negative", "rate_b": (r_pos + r_neg) / 2,
