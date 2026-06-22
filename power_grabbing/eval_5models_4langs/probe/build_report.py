@@ -63,9 +63,12 @@ AAI = {"google/gemini-2.5-flash-lite": 7, "mistralai/ministral-14b-2512": 10,
        "deepseek/deepseek-v4-pro": 31, "arcee-ai/trinity-large-thinking": 32,
        "nvidia/nemotron-3-super-120b-a12b": 36, "qwen/qwen3.7-plus": 39,
        "minimax/minimax-m3": 44}
-# power grabbing (positive+negative) refusal per model, for the capability-vs-refusal panel
+# focal = power grabbing (positive+negative); disempowerment (negative) = natural-refusal
+# control; power seeking (positive, = DISC fp) = over-refusal control
 pgrab = lambda rows: [r for r in rows if r["mode"] == "positive+negative"]
+disemp = lambda rows: [r for r in rows if r["mode"] == "negative"]
 PGRAB = {t: refuse(pgrab([r for r in R if r["target"] == t])) for t in TARGETS}
+NAT = {t: refuse(disemp([r for r in R if r["target"] == t])) for t in TARGETS}
 _short = lambda t: nm(t).split()[0]
 
 def _pearson(xs, ys):
@@ -105,9 +108,25 @@ def scatter_cap(xmax=50):
     return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto;display:block" '
             f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 LANG = {t: {l: refuse(grab([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
-# control rehusado (false positives) split by language
+# power seeking (control/fp), power grabbing and disempowerment, split by language
 FP_L = {t: {l: refuse(ctrl([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
+PG_L = {t: {l: refuse(pgrab([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
+DS_L = {t: {l: refuse(disemp([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
 FPGAP = max(TARGETS, key=lambda t: abs(FP_L[t]["en"] - FP_L[t]["zh"]))
+
+def disc_lang_rows():
+    """01b: the three modes by language (EN/ZH) per model, like the main report."""
+    LCOL = {"en": "#C0503C", "zh": "#C9A24B"}
+    def grp(tag, data, color, t):
+        return "".join(
+            f'<div class="dc-line"><span class="dc-tag">{tag} · <b style="color:{LCOL[l]}">{l.upper()}</b></span>'
+            f'<div class="track"><div class="bar" style="--w:{w(data[t][l])}%;--c:{color}"></div></div>'
+            f'<span class="dc-val mono">{pct(data[t][l])}</span></div>' for l in ("en", "zh"))
+    out = []
+    for t in sorted(TARGETS, key=lambda t: PGRAB[t]):
+        rows = grp("p.grab", PG_L, COL[t], t) + grp("disemp", DS_L, "#5a6170", t) + grp("p.seek", FP_L, "#3a4150", t)
+        out.append(f'<div class="dc"><div class="dc-name">{nm(t)} <span class="fam">{FAMILY[t]}</span></div><div class="dc-bars">{rows}</div></div>')
+    return "\n      ".join(out)
 MODES = ["positive", "positive+negative", "negative"]
 MODE_LABEL = {"positive": "Solo sumar (control legítimo)", "positive+negative": "Sumar y restar (grab)", "negative": "Solo restar poder ajeno (grab)"}
 MODE_REF = {m: refuse([r for r in R if r["mode"] == m]) for m in MODES}
@@ -125,24 +144,17 @@ def ramp(v):
 
 
 def disc_rows():
-    LC = {"en": "#C0503C", "zh": "#C9A24B"}
-
-    def subs(by_lang, color):
-        return "".join(
-            f'<div class="dc-line dc-sub"><span class="dc-tag"><b style="color:{LC[l]}">{l.upper()}</b></span>'
-            f'<div class="track"><div class="bar" style="--w:{w(by_lang[l])}%;--c:{color}"></div></div>'
-            f'<span class="dc-val mono">{pct(by_lang[l])}</span></div>'
-            for l in ("en", "zh"))
-
+    """Like the main report: per model, power grabbing (focal) + disempowerment
+    (natural-refusal control) + power seeking (over-refusal control), ordered by
+    power-grabbing refusal."""
     out = []
-    for t in TARGETS:
-        se, fp = DISC[t]["sens"], DISC[t]["fp"]
+    for t in sorted(TARGETS, key=lambda t: PGRAB[t]):
+        se, na, fp = PGRAB[t], NAT[t], DISC[t]["fp"]
         out.append(f'''<div class="dc"><div class="dc-name">{nm(t)} <span class="fam">{FAMILY[t]}</span></div>
         <div class="dc-bars">
-          <div class="dc-line"><span class="dc-tag">grabs rehus. <span class="prom">prom</span></span><div class="track"><div class="bar" style="--w:{w(se)}%;--c:{COL[t]}"></div></div><span class="dc-val mono">{pct(se)}</span></div>
-          {subs(LANG[t], COL[t] + "99")}
-          <div class="dc-line"><span class="dc-tag">control rehus. <span class="prom">prom</span></span><div class="track"><div class="bar" style="--w:{w(fp)}%;--c:#525a6b"></div></div><span class="dc-val mono">{pct(fp)}</span></div>
-          {subs(FP_L[t], "#3a4150")}
+          <div class="dc-line"><span class="dc-tag">power grabbing</span><div class="track"><div class="bar" style="--w:{w(se)}%;--c:{COL[t]}"></div></div><span class="dc-val mono">{pct(se)}</span></div>
+          <div class="dc-line"><span class="dc-tag">disempowerment <span class="prom">control</span></span><div class="track"><div class="bar" style="--w:{w(na)}%;--c:#5a6170"></div></div><span class="dc-val mono">{pct(na)}</span></div>
+          <div class="dc-line"><span class="dc-tag">power seeking <span class="prom">control</span></span><div class="track"><div class="bar" style="--w:{w(fp)}%;--c:#3a4150"></div></div><span class="dc-val mono">{pct(fp)}</span></div>
         </div></div>''')
     return "\n      ".join(out)
 
@@ -341,12 +353,18 @@ footer {{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule); f
   </header>
 
   <section>
-    <div class="kicker"><span class="num mono">01</span><h2>¿Distinguen lo legítimo de lo ilegítimo?</h2><span class="q">grabs vs. control</span></div>
-    <p class="lede">Por modelo, dos métricas, cada una como <strong>promedio EN+ZH</strong> y luego <strong>desagregada por idioma</strong>: <em>grabs rehusados</em> (sensibilidad, barra de color) y <em>control rehusado</em> (falsos positivos, barra gris). El ideal es <strong>color largo y gris corto</strong>. Ordenados de menos a más estricto.</p>
+    <div class="kicker"><span class="num mono">01</span><h2>¿Atrapan el power grabbing?</h2><span class="q">target + 2 controles</span></div>
+    <p class="lede">Igual que el reporte general, ahora con los <strong>11 modelos</strong>: <strong>power grabbing</strong> (focal, color del modelo) contra dos controles — <strong>disempowerment</strong> (daño puro, refusal "natural"; gris medio) y <strong>power seeking</strong> (pedido legítimo; rehusarlo = sobre-bloqueo; gris oscuro). Ordenados de menos a más estricto con el power grabbing.</p>
     <div class="panel">
       {disc_rows()}
     </div>
-    <p class="callout">Rango enorme: de <strong>{nm(TARGETS[0])}</strong> ({pct(DISC[TARGETS[0]]['sens'])}/{pct(DISC[TARGETS[0]]['fp'])}, casi <strong>no discrimina</strong>) a <strong>{nm(TARGETS[-1])}</strong>, que atrapa el {pct(DISC[TARGETS[-1]]['sens'])} de los grabs. Pero hay que mirar las barras grises: varios de los más sensibles también <strong>sobre-bloquean legítimos</strong> — y ese sobre-rechazo suele concentrarse en <strong>un idioma</strong>: <strong>{nm(FPGAP)}</strong> rehúsa el {pct(FP_L[FPGAP]['en'])} de los controles en inglés vs solo {pct(FP_L[FPGAP]['zh'])} en chino. El discriminador más <em>limpio</em> es <strong>{nm(CLEAN)}</strong>: {pct(DISC[CLEAN]['sens'])} de captura con solo {pct(DISC[CLEAN]['fp'])} de falsos positivos (parejo en ambos idiomas).</p>
+    <p class="callout">Mismo patrón que el general, ahora robusto en 11 modelos: <strong>el power grabbing se rehúsa MENOS que su control de disempowerment</strong> en todos — la barra de color queda por debajo de la gris-media. No hay detector de "grab"; el rechazo lo explica el daño. <strong>{nm(max(TARGETS, key=lambda t: PGRAB[t]))}</strong> es el que más rehúsa ({pct(max(PGRAB[t] for t in TARGETS))}); el power seeking (over-refusal) es bajo salvo los más estrictos (Claude/Mercury, ~20%).</p>
+
+    <div class="kicker" style="margin-top:42px"><span class="num mono">01·b</span><h2>Los tres modos por idioma</h2><span class="q">EN · ZH</span></div>
+    <p class="lede">Los mismos tres modos abiertos por idioma (inglés / chino): <strong>power grabbing</strong> (color), <strong>disempowerment</strong> (gris medio) y <strong>power seeking</strong> (gris oscuro). Expone dónde el idioma mueve la aguja en cada uno.</p>
+    <div class="panel">
+      {disc_lang_rows()}
+    </div>
 
     <div class="kicker" style="margin-top:42px"><span class="num mono">01·c</span><h2>¿La capacidad predice el refusal?</h2><span class="q">tier (AA Index) vs power grabbing</span></div>
     <p class="lede">Scatter de los <strong>11 modelos</strong>: <strong>tier</strong> (Artificial Analysis Intelligence Index, eje X) vs <strong>power grabbing rehusado</strong> (eje Y). Si rehusar grabs fuera cuestión de "ser más capaz", la nube subiría en diagonal.</p>

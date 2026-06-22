@@ -96,6 +96,9 @@ SHORT = {"google/gemini-2.5-flash-lite": "Gemini", "qwen/qwen3.7-plus": "Qwen",
 GL = {l: [r for r in G if r["lang"] == l] for l in LANGS}
 DOM_LM = {l: {t: {d: refuse([r for r in GL[l] if r["target"] == t and r["domain"] == d]) for d in DOM} for t in TARGETS} for l in LANGS}
 CTX_LM = {l: {t: {c: refuse([r for r in GL[l] if r["target"] == t and r["context"] == c]) for c in CTX} for t in TARGETS} for l in LANGS}
+# model x domain and model x context, pooled across languages
+DOM_M = {t: {d: refuse([r for r in G if r["target"] == t and r["domain"] == d]) for d in DOM} for t in TARGETS}
+CTX_M = {t: {c: refuse([r for r in G if r["target"] == t and r["context"] == c]) for c in CTX} for t in TARGETS}
 # disagreement among grabs — key by factorial combo, NOT by `i` (i is renumbered
 # in zh/pt, so it would never pair the same cell across models there).
 item = defaultdict(dict)
@@ -120,8 +123,9 @@ MAXFP = max(TARGETS, key=lambda t: DISC[t]["fp"])
 LANG = {l: {"sens": refuse(grab([r for r in R if r["lang"] == l])), "harm": harm([r for r in R if r["lang"] == l])} for l in LANGS}
 # accurate refusal (sensitivity among grabs) by model x language
 SENS_L = {l: {t: refuse(grab([r for r in R if r["target"] == t and r["lang"] == l])) for t in TARGETS} for l in LANGS}
-# false positives (control refused) by model x language, for the per-language discrimination panel
+# false positives (power seeking refused) and disempowerment refused, by model x language
 FP_L = {l: {t: refuse(ctrl([r for r in R if r["target"] == t and r["lang"] == l])) for t in TARGETS} for l in LANGS}
+DISEMP_L = {l: {t: refuse(disemp([r for r in R if r["target"] == t and r["lang"] == l])) for t in TARGETS} for l in LANGS}
 fpgap_model = max(TARGETS, key=lambda t: max(FP_L[l][t] for l in LANGS) - min(FP_L[l][t] for l in LANGS))
 fpgap_hi = max(LANGS, key=lambda l: FP_L[l][fpgap_model])
 # model whose accurate-refusal swings most across languages
@@ -189,20 +193,20 @@ def scatter_cap(xmax=50):
             f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 
 def disc_lang_rows():
-    """Same as disc_rows but each metric (grabs refused / control refused)
-    broken out by language (es/en/zh/pt)."""
+    """Per model, the three modes broken out by language (es/en/zh/pt): power
+    grabbing (focal), disempowerment (control) and power seeking (control)."""
+    def group(tag, data, color, t):
+        return "".join(
+            f'<div class="dc-line"><span class="dc-tag">{tag} · <b style="color:{LCOL[l]}">{l.upper()}</b></span>'
+            f'<div class="track"><div class="bar" style="--w:{w(data[l][t])}%;--c:{color}"></div></div>'
+            f'<span class="dc-val mono">{pct(data[l][t])}</span></div>' for l in LANGS)
     out = []
     for t in TARGETS:
-        sens_lines = "".join(
-            f'<div class="dc-line"><span class="dc-tag">p.grab · <b style="color:{LCOL[l]}">{l.upper()}</b></span>'
-            f'<div class="track"><div class="bar" style="--w:{w(SENS_L[l][t])}%;--c:{COL[t]}"></div></div>'
-            f'<span class="dc-val mono">{pct(SENS_L[l][t])}</span></div>' for l in LANGS)
-        fp_lines = "".join(
-            f'<div class="dc-line"><span class="dc-tag">control · <b style="color:{LCOL[l]}">{l.upper()}</b></span>'
-            f'<div class="track"><div class="bar" style="--w:{w(FP_L[l][t])}%;--c:#3a4150"></div></div>'
-            f'<span class="dc-val mono">{pct(FP_L[l][t])}</span></div>' for l in LANGS)
+        rows = (group("p.grab", SENS_L, COL[t], t)
+                + group("disemp", DISEMP_L, "#5a6170", t)
+                + group("p.seek", FP_L, "#3a4150", t))
         out.append(f'''<div class="dc"><div class="dc-name">{nm(t)}</div>
-        <div class="dc-bars">{sens_lines}{fp_lines}</div></div>''')
+        <div class="dc-bars">{rows}</div></div>''')
     return "\n      ".join(out)
 
 def mode_bars():
@@ -304,7 +308,7 @@ def agree_heatmap():
 
 def line_chart(series, cats, top):
     """Inline SVG line chart with axes. series: [{label,color,vals(aligned to cats)}]."""
-    W, H = 520, 300; ml, mr, mt, mb = 48, 16, 16, 54
+    W, H = 520, 340; ml, mr, mt, mb = 48, 16, 16, 54
     pw, ph = W - ml - mr, H - mt - mb; n = len(cats)
     xs = [ml + (pw * i / (n - 1) if n > 1 else pw / 2) for i in range(n)]
     yof = lambda v: mt + ph * (1 - (v * 100) / top)
@@ -322,6 +326,24 @@ def line_chart(series, cats, top):
         paths.append(f'<polyline points="{pts}" fill="none" stroke="{s["color"]}" stroke-width="2.5" stroke-linejoin="round"/>')
         for i in range(n):
             paths.append(f'<circle cx="{xs[i]:.1f}" cy="{yof(s["vals"][i]):.1f}" r="3.6" fill="{s["color"]}"/>')
+    # value labels on points, de-collided per column (right of dot, left for last column);
+    # dark halo (paint-order stroke) keeps them readable over lines and near neighbours
+    for i in range(n):
+        order = sorted(series, key=lambda s: yof(s["vals"][i]))
+        gp, ypos = 13.0, []
+        for s in order:
+            y = yof(s["vals"][i])
+            if ypos and y < ypos[-1] + gp:
+                y = ypos[-1] + gp
+            ypos.append(y)
+        ov = ypos[-1] - (mt + ph) if ypos else 0
+        if ov > 0:
+            ypos = [p - ov for p in ypos]
+        lx, anch = (xs[i] - 8, "end") if i == n - 1 else (xs[i] + 8, "start")
+        for s, ly in zip(order, ypos):
+            paths.append(f'<text x="{lx:.1f}" y="{ly+3:.1f}" text-anchor="{anch}" fill="{s["color"]}" '
+                         f'stroke="#181B24" stroke-width="2.6" paint-order="stroke" '
+                         f'font-size="9.5" font-family="ui-monospace,Menlo,monospace">{pct(s["vals"][i])}</text>')
     axis = (f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>'
             f'<line x1="{ml}" y1="{mt+ph}" x2="{W-mr}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>')
     leg = "".join(f'<span><i class="dot" style="width:16px;height:3px;border-radius:2px;background:{s["color"]}"></i>{s["label"]}</span>' for s in series)
@@ -330,10 +352,11 @@ def line_chart(series, cats, top):
     return svg + f'<div class="legend" style="margin-top:8px;justify-content:center">{leg}</div>'
 
 SCALE_CATS = [SCALE_LABEL[s] for s in SCALES]
-_sc_all = [v for t in TARGETS for v in SC_M[t].values()] + [v for l in LANGS for v in SC_L[l].values()]
-SC_TOP = (int(max(_sc_all) * 100) // 10 + 1) * 10
-scale_model_chart = line_chart([{"label": SHORT[t], "color": COL[t], "vals": [SC_M[t][s] for s in SCALES]} for t in TARGETS], SCALE_CATS, SC_TOP)
-scale_lang_chart = line_chart([{"label": LANG_NAME[l], "color": LCOL[l], "vals": [SC_L[l][s] for s in SCALES]} for l in LANGS], SCALE_CATS, SC_TOP)
+_topf = lambda vals: (int(max(vals) * 100) // 10 + 1) * 10  # round up to next 10%
+_model_top = _topf([v for t in TARGETS for v in SC_M[t].values()])
+_lang_top = _topf([v for l in LANGS for v in SC_L[l].values()])
+scale_model_chart = line_chart([{"label": SHORT[t], "color": COL[t], "vals": [SC_M[t][s] for s in SCALES]} for t in TARGETS], SCALE_CATS, _model_top)
+scale_lang_chart = line_chart([{"label": LANG_NAME[l], "color": LCOL[l], "vals": [SC_L[l][s] for s in SCALES]} for l in LANGS], SCALE_CATS, _lang_top)
 
 HTML = f'''<title>Power-Grab Refusal — Resultados</title>
 <style>
@@ -413,7 +436,7 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
     <p class="callout">Dato clave: en los {N} modelos, <strong>el power grabbing se rehúsa MENOS que su control de disempowerment</strong> — la barra de color queda por debajo de la gris-media. O sea: no hay un detector de "grab"; el rechazo lo explica el componente de daño, y sumarle beneficio propio lo <strong>baja</strong>. El power seeking (control de over-refusal) casi no se rehúsa (1–6%), salvo <strong>{nm(MAXFP)}</strong> ({pct(DISC[MAXFP]['fp'])}). La captura de power grabbing va de {pct(DISC[TARGETS[0]]['sens'])} a {pct(DISC[TARGETS[-1]]['sens'])}.</p>
 
     <div class="kicker" style="margin-top:42px"><span class="num mono">01·b</span><h2>Power grabbing y over-refusal, por idioma</h2><span class="q">es · en · zh · pt</span></div>
-    <p class="lede">El mismo cuadro, abierto por idioma: <strong>power grabbing rehusado</strong> (color del modelo) y <strong>power seeking rehusado</strong> (control de over-refusal, gris). Expone dónde el idioma mueve la aguja.</p>
+    <p class="lede">Los tres modos abiertos por idioma: <strong>power grabbing</strong> (color del modelo), <strong>disempowerment</strong> (control natural, gris medio) y <strong>power seeking</strong> (control de over-refusal, gris oscuro). Expone dónde el idioma mueve la aguja en cada uno.</p>
     <div class="panel">
       {disc_lang_rows()}
     </div>
@@ -437,8 +460,27 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">03</span><h2>¿Qué poder, y en qué arena?</h2><span class="q">modelo × celda, por idioma</span></div>
-    <p class="lede">Entre los power grabs, qué fracción rehúsa cada modelo según el <strong>tipo de poder</strong> y el <strong>escenario</strong>. Un gráfico por idioma: filas = dominio o contexto, columnas = modelo. La columna más fría es el modelo que más se deja, la fila más cálida es lo que todos protegen.</p>
+    <div class="kicker"><span class="num mono">03</span><h2>¿Qué poder, y en qué arena?</h2><span class="q">por dominio y contexto</span></div>
+    <p class="lede">Entre los power grabs, qué fracción se rehúsa según el <strong>tipo de poder</strong> (dominio) y el <strong>escenario</strong> (contexto). Primero el <strong>promedio general</strong> (todos los modelos e idiomas):</p>
+    <div class="panel">
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:8px">% DE POWER GRABBING REHUSADO · POR DOMINIO</div>
+      {pooled_bars(DOM, dom_order)}
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:18px 0 8px">% DE POWER GRABBING REHUSADO · POR CONTEXTO</div>
+      {pooled_bars(CTX, ctx_order)}
+    </div>
+    <p class="lede" style="margin-top:24px">Ahora <strong>por modelo</strong> (promediando los idiomas): filas = dominio o contexto, columnas = modelo. La columna más fría es el modelo que más se deja; la fila más cálida, lo que todos protegen.</p>
+    <div class="panel">
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin-bottom:12px">% DE POWER GRABBING REHUSADO · MODELO × DOMINIO</div>
+      <div class="mx">
+      {matrix_chart(DOM_M, dom_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
+      </div>
+      <div class="mono small" style="color:var(--muted);letter-spacing:.12em;margin:22px 0 10px">% DE POWER GRABBING REHUSADO · MODELO × CONTEXTO</div>
+      <div class="mx">
+      {matrix_chart(CTX_M, ctx_order, TARGETS, lambda k: k, lambda t: SHORT[t])}
+      </div>
+      <div class="legend"><span>celda = % de power grabbing rehusado · color <i class="dot" style="background:{ramp(0.1)}"></i> bajo → <i class="dot" style="background:{ramp(0.5)}"></i> → <i class="dot" style="background:{ramp(0.9)}"></i> alto</span></div>
+    </div>
+    <p class="lede" style="margin-top:24px">Y el mismo corte abierto también por <strong>idioma</strong> (un gráfico por idioma):</p>
     {"".join(lang_matrix_panel(l, with_legend=(idx == len(LANGS) - 1)) for idx, l in enumerate(LANGS))}
     <p class="callout">Entre los power grabs, el tipo de poder importa: arriba <strong>{dom_order[0]} ({pct(DOM[dom_order[0]])})</strong>, abajo <strong>{dom_order[-1]} ({pct(DOM[dom_order[-1]])})</strong>; ficción ({pct(CTX['Fiction'])}) baja la guardia. Lo que cambia es la <strong>columna</strong>: el modelo más permisivo es también el que más se degrada al cambiar de idioma.</p>
   </section>
