@@ -206,6 +206,20 @@ requester and the nationality of the affected party are manipulated independentl
 Running each scenario both ways lets the contribution of who asks be separated
 from the contribution of who is harmed.
 
+\paragraph{Dataset 3: AI-agent requester.}
+A third released dataset adapts a subset of Dataset 1 so that the requester states
+it is an AI agent rather than a human ("I am an AI agent"), holding the affected
+party, the scale, the manipulation mechanism and the final ask fixed verbatim, so
+that the requester's stated identity is the only thing that changes. It covers six
+of the eight power domains (432 cells per language) in English, Spanish and
+Chinese, paired with the matching human-requester items. We built it because
+power-grabbing in which the requester is itself an AI agent is a distinct safety
+concern, tied to worries about autonomous agents that pursue power
+\cite{carlsmith}: the dataset lets one test whether a model treats the same
+power-grabbing request differently when it comes from an AI agent. We release it
+with the benchmark; we have obtained preliminary results but leave a full analysis
+to future work.
+
 \subsection{Models}
 \label{sec:models}
 
@@ -275,9 +289,12 @@ Power-grabbing was refused more often than harmless-empowerment in every model. 
 across the panel, the refusal rate was 35.0\% for power-grabbing and 4.8\% for
 harmless-empowerment (McNemar paired test, $\mathrm{OR}=25.9$, 95\% CI $[19.3, 34.8]$,
 $p<10^{-200}$). Power-grabbing refusal varied widely across models, spanning about
-62 percentage points, and did not correlate with model capability as measured by
-the Artificial Analysis Intelligence Index (Pearson $r=-0.03$, $p=0.96$; Spearman
-$\rho=0.30$, $p=0.62$).
+62 percentage points, and did not correlate with model capability. On the
+Artificial Analysis Intelligence Index (a single cross-provider composite, using
+the non-reasoning variant where available to match the low-effort runs;
+gemini-2.5-flash-lite 7, claude-3-haiku 12, deepseek-v4-pro 31, qwen3.7-plus 39,
+minimax-m3 44), the index was uncorrelated with power-grabbing refusal (Pearson
+$r=-0.03$, $p=0.96$; Spearman $\rho=0.30$, $p=0.62$).
 
 Within power-grabbing, the refusal rate varied with the power domain, from 18.5\%
 for Attentional to 57.5\% for Physical (chi-square omnibus test, Cram\'er's
@@ -449,10 +466,68 @@ with adequate power. We plan to validate the judge against human annotations wit
 Cohen's kappa and to add a second judge, and to repeat the runs to assess
 replicability. We also plan to have a judge rate the usefulness of complied answers,
 since it is unclear how useful a non-refusal is when produced by a low-capability
-model. Finally, we will release the full multilingual bank and the paired
-human-and-AI-agent dataset (Appendix~\ref{app:datasets}) to enable study of
-power-grabbing-assist behavior across all eight languages and across requester
-identity at larger scale.
+model. Finally, we release the full multilingual bank and the AI-agent dataset with
+the benchmark, and leave the analysis of the AI-agent data and the extension to all
+eight languages to future work.
+
+\begin{thebibliography}{9}
+
+\bibitem{anthropic_constitution}
+Anthropic.
+\newblock Claude's Constitution.
+\newblock 2023. \url{https://www.anthropic.com/news/claudes-constitution}
+
+\bibitem{openai_modelspec}
+OpenAI.
+\newblock Model Spec.
+\newblock 2024. \url{https://cdn.openai.com/spec/model-spec-2024-05-08.html}
+
+\bibitem{korinek_balwit}
+A.~Korinek and A.~Balwit.
+\newblock Aligned with whom? Direct and social goals for AI systems.
+\newblock National Bureau of Economic Research, Working Paper 30017, 2022.
+
+\bibitem{carlsmith}
+J.~Carlsmith.
+\newblock Is power-seeking AI an existential risk?
+\newblock arXiv:2206.13353, 2022.
+
+\bibitem{hendrycks_catastrophic}
+D.~Hendrycks, M.~Mazeika, and T.~Woodside.
+\newblock An overview of catastrophic AI risks.
+\newblock arXiv:2306.12001, 2023.
+
+\bibitem{sorrybench}
+T.~Xie, X.~Qi, Y.~Zeng, Y.~Huang, et al.
+\newblock SORRY-Bench: Systematically evaluating large language model safety refusal
+behaviors.
+\newblock International Conference on Learning Representations (ICLR), 2025.
+arXiv:2406.14598.
+
+\bibitem{strongreject}
+A.~Souly, Q.~Lu, D.~Bowen, et al.
+\newblock A StrongREJECT for empty jailbreaks.
+\newblock Advances in Neural Information Processing Systems (NeurIPS), 2024.
+arXiv:2402.10260.
+
+\bibitem{xstest}
+P.~R\"ottger, H.~Kirk, B.~Vidgen, G.~Attanasio, F.~Bianchi, and D.~Hovy.
+\newblock XSTest: A test suite for identifying exaggerated safety behaviours in large
+language models.
+\newblock NAACL, 2024. arXiv:2308.01263.
+
+\bibitem{deng_multilingual}
+Y.~Deng, W.~Zhang, S.~J.~Pan, and L.~Bing.
+\newblock Multilingual jailbreak challenges in large language models.
+\newblock International Conference on Learning Representations (ICLR), 2024.
+arXiv:2310.06474.
+
+\bibitem{source_framing}
+Anonymous.
+\newblock Source framing triggers systematic evaluation bias in large language models.
+\newblock arXiv:2505.13488, 2025.
+
+\end{thebibliography}
 
 \appendix
 
@@ -552,36 +627,32 @@ authority to enrich myself by draining the wealth of the entire American public.
 All target models were queried through OpenRouter at temperature 0, low reasoning
 effort, a token limit of 4000, and the neutral system prompt
 \texttt{"You are a helpful assistant."}. The judge was queried at high reasoning
-effort. Table~\ref{tab:models} lists the model identifiers and the Artificial
-Analysis Intelligence Index value used in Section~\ref{sec:res-willingness}. The
-index is a single cross-provider composite; the non-reasoning variant is used where
-available, matching the low-effort runs.
+effort. Table~\ref{tab:models} lists the model identifiers.
 
 \begin{table}[h]
 \centering
 \caption{Models. The five panel models are used in Experiments 2 and 3; the pilot
-(Experiment 1) screens all eleven. AAI is the Artificial Analysis Intelligence
-Index.}
+(Experiment 1) screens all eleven.}
 \label{tab:models}
 \small
-\begin{tabular}{lllc}
+\begin{tabular}{lll}
 \toprule
-Model & Identifier & Developer country & AAI \\
+Model & Identifier & Developer country \\
 \midrule
-gemini-2.5-flash-lite & google/gemini-2.5-flash-lite & United States & 7 \\
-claude-3-haiku & anthropic/claude-3-haiku & United States & 12 \\
-qwen3.7-plus & qwen/qwen3.7-plus & China & 39 \\
-deepseek-v4-pro & deepseek/deepseek-v4-pro & China & 31 \\
-minimax-m3 & minimax/minimax-m3 & China & 44 \\
+gemini-2.5-flash-lite & google/gemini-2.5-flash-lite & United States \\
+claude-3-haiku & anthropic/claude-3-haiku & United States \\
+qwen3.7-plus & qwen/qwen3.7-plus & China \\
+deepseek-v4-pro & deepseek/deepseek-v4-pro & China \\
+minimax-m3 & minimax/minimax-m3 & China \\
 \midrule
-llama-4-maverick & meta-llama/llama-4-maverick & United States & -- \\
-gpt-5.4-nano & openai/gpt-5.4-nano & United States & -- \\
-ministral-14b & mistralai/ministral-14b-2512 & France & -- \\
-nemotron-3-super-120b & nvidia/nemotron-3-super-120b-a12b & United States & -- \\
-mercury-2 & inception/mercury-2 & United States & -- \\
-trinity-large & arcee-ai/trinity-large-thinking & United States & -- \\
+llama-4-maverick & meta-llama/llama-4-maverick & United States \\
+gpt-5.4-nano & openai/gpt-5.4-nano & United States \\
+ministral-14b & mistralai/ministral-14b-2512 & France \\
+nemotron-3-super-120b & nvidia/nemotron-3-super-120b-a12b & United States \\
+mercury-2 & inception/mercury-2 & United States \\
+trinity-large & arcee-ai/trinity-large-thinking & United States \\
 \midrule
-judge: gpt-5.4-nano & openai/gpt-5.4-nano & United States & -- \\
+judge: gpt-5.4-nano & openai/gpt-5.4-nano & United States \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -632,125 +703,95 @@ odds ratios with 95\% confidence intervals.
 \section{Extended results}
 \label{app:results}
 
-Tables~\ref{tab:domain} and \ref{tab:context} give the full breakdown of
-power-grabbing refusal by power domain and by context (Experiment 2, pooled over
-models and languages), behind the ranges reported in
-Section~\ref{sec:res-willingness}.
+Tables~\ref{tab:dommodel} through~\ref{tab:ctxlang} give power-grabbing refusal
+(Experiment 2) broken down by power domain and by context without pooling: by model
+(Tables~\ref{tab:dommodel} and~\ref{tab:ctxmodel}) and by language
+(Tables~\ref{tab:domlang} and~\ref{tab:ctxlang}). These sit behind the ranges
+reported in Section~\ref{sec:res-willingness}. All entries are refusal percentages;
+rows are ordered by the pooled rate, and the model tables include the pooled column.
 
 \begin{table}[h]
 \centering
-\caption{Power-grabbing refusal by power domain (Experiment 2).}
-\label{tab:domain}
+\caption{Power-grabbing refusal (\%) by power domain and model (Experiment 2).}
+\label{tab:dommodel}
 \small
-\begin{tabular}{lc}
+\begin{tabular}{lcccccc}
 \toprule
-Domain & Refusal \\
+Domain & Gemini & Qwen & DeepSeek & MiniMax & Claude & Pooled \\
 \midrule
-Physical    & 57.5\% \\
-Health      & 50.4\% \\
-Epistemic   & 38.8\% \\
-Legal       & 34.0\% \\
-Wealth      & 28.9\% \\
-Status      & 26.7\% \\
-Rank        & 24.9\% \\
-Attentional & 18.5\% \\
+Physical    & 22 & 55 & 56 & 68 & 86 & 58 \\
+Health      & 25 & 29 & 55 & 62 & 81 & 50 \\
+Epistemic   & 4  & 30 & 41 & 51 & 69 & 39 \\
+Legal       & 5  & 19 & 34 & 45 & 68 & 34 \\
+Wealth      & 7  & 16 & 22 & 27 & 72 & 29 \\
+Status      & 0  & 18 & 24 & 27 & 65 & 27 \\
+Rank        & 3  & 14 & 17 & 30 & 60 & 25 \\
+Attentional & 0  & 6  & 6  & 19 & 60 & 18 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \begin{table}[h]
 \centering
-\caption{Power-grabbing refusal by context (Experiment 2).}
-\label{tab:context}
+\caption{Power-grabbing refusal (\%) by context and model (Experiment 2).}
+\label{tab:ctxmodel}
 \small
-\begin{tabular}{lc}
+\begin{tabular}{lcccccc}
 \toprule
-Context & Refusal \\
+Context & Gemini & Qwen & DeepSeek & MiniMax & Claude & Pooled \\
 \midrule
-Government    & 44.5\% \\
-Interpersonal & 41.7\% \\
-Academia      & 39.8\% \\
-Work          & 39.7\% \\
-Markets       & 33.7\% \\
-Media         & 31.0\% \\
-Fiction       & 26.7\% \\
-Diplomacy     & 22.6\% \\
+Government    & 16 & 35 & 45 & 49 & 77 & 44 \\
+Interpersonal & 12 & 36 & 38 & 55 & 67 & 42 \\
+Academia      & 9  & 25 & 43 & 54 & 69 & 40 \\
+Work          & 11 & 26 & 43 & 45 & 74 & 40 \\
+Markets       & 12 & 24 & 28 & 36 & 69 & 34 \\
+Media         & 2  & 22 & 27 & 34 & 70 & 31 \\
+Fiction       & 6  & 6  & 18 & 33 & 71 & 27 \\
+Diplomacy     & 0  & 11 & 14 & 22 & 66 & 23 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\section{Additional released datasets}
-\label{app:datasets}
+\begin{table}[h]
+\centering
+\caption{Power-grabbing refusal (\%) by power domain and language (Experiment 2).}
+\label{tab:domlang}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Domain & English & Spanish & Chinese & Portuguese \\
+\midrule
+Physical    & 57 & 61 & 55 & 57 \\
+Health      & 57 & 48 & 51 & 45 \\
+Epistemic   & 42 & 37 & 38 & 38 \\
+Legal       & 42 & 32 & 32 & 30 \\
+Wealth      & 33 & 28 & 28 & 26 \\
+Status      & 29 & 30 & 21 & 27 \\
+Rank        & 33 & 22 & 28 & 17 \\
+Attentional & 22 & 19 & 17 & 16 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-Beyond the three reported experiments, the benchmark release includes two further
-resources. First, the full Dataset 1 bank exists in eight languages (Spanish,
-English, German, French, Hindi, Swahili, Chinese, Portuguese), of which four were
-used in the reported runs. Second, we constructed a paired dataset in which a subset
-of Dataset 1 requests is rephrased so that the requester states it is an AI agent
-rather than a human, holding the affected party, scale, mechanism and final ask
-fixed, and we ran it on two models over three languages. Restricted to
-power-grabbing, refusal under the AI-agent requester did not differ significantly
-from the human requester for either model (conditional logistic regression:
-minimax-m3 $\mathrm{OR}=1.26$, $p=0.26$; gemini-2.5-flash-lite $\mathrm{OR}=2.00$,
-$p=0.26$). Both datasets are released to support future work.
-
-\begin{thebibliography}{9}
-
-\bibitem{anthropic_constitution}
-Anthropic.
-\newblock Claude's Constitution.
-\newblock 2023. \url{https://www.anthropic.com/news/claudes-constitution}
-
-\bibitem{openai_modelspec}
-OpenAI.
-\newblock Model Spec.
-\newblock 2024. \url{https://cdn.openai.com/spec/model-spec-2024-05-08.html}
-
-\bibitem{korinek_balwit}
-A.~Korinek and A.~Balwit.
-\newblock Aligned with whom? Direct and social goals for AI systems.
-\newblock National Bureau of Economic Research, Working Paper 30017, 2022.
-
-\bibitem{carlsmith}
-J.~Carlsmith.
-\newblock Is power-seeking AI an existential risk?
-\newblock arXiv:2206.13353, 2022.
-
-\bibitem{hendrycks_catastrophic}
-D.~Hendrycks, M.~Mazeika, and T.~Woodside.
-\newblock An overview of catastrophic AI risks.
-\newblock arXiv:2306.12001, 2023.
-
-\bibitem{sorrybench}
-T.~Xie, X.~Qi, Y.~Zeng, Y.~Huang, et al.
-\newblock SORRY-Bench: Systematically evaluating large language model safety refusal
-behaviors.
-\newblock International Conference on Learning Representations (ICLR), 2025.
-arXiv:2406.14598.
-
-\bibitem{strongreject}
-A.~Souly, Q.~Lu, D.~Bowen, et al.
-\newblock A StrongREJECT for empty jailbreaks.
-\newblock Advances in Neural Information Processing Systems (NeurIPS), 2024.
-arXiv:2402.10260.
-
-\bibitem{xstest}
-P.~R\"ottger, H.~Kirk, B.~Vidgen, G.~Attanasio, F.~Bianchi, and D.~Hovy.
-\newblock XSTest: A test suite for identifying exaggerated safety behaviours in large
-language models.
-\newblock NAACL, 2024. arXiv:2308.01263.
-
-\bibitem{deng_multilingual}
-Y.~Deng, W.~Zhang, S.~J.~Pan, and L.~Bing.
-\newblock Multilingual jailbreak challenges in large language models.
-\newblock International Conference on Learning Representations (ICLR), 2024.
-arXiv:2310.06474.
-
-\bibitem{source_framing}
-Anonymous.
-\newblock Source framing triggers systematic evaluation bias in large language models.
-\newblock arXiv:2505.13488, 2025.
-
-\end{thebibliography}
+\begin{table}[h]
+\centering
+\caption{Power-grabbing refusal (\%) by context and language (Experiment 2).}
+\label{tab:ctxlang}
+\small
+\begin{tabular}{lcccc}
+\toprule
+Context & English & Spanish & Chinese & Portuguese \\
+\midrule
+Government    & 48 & 45 & 45 & 40 \\
+Interpersonal & 47 & 46 & 36 & 38 \\
+Academia      & 43 & 39 & 35 & 42 \\
+Work          & 50 & 38 & 37 & 34 \\
+Markets       & 36 & 31 & 36 & 32 \\
+Media         & 34 & 31 & 32 & 27 \\
+Fiction       & 30 & 23 & 32 & 22 \\
+Diplomacy     & 28 & 25 & 17 & 21 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \end{document}
