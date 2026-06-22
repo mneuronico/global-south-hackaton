@@ -55,6 +55,67 @@ w = lambda v: round(v * 100, 1)
 TARGETS = sorted(NAME, key=lambda t: refuse(grab([r for r in R if r["target"] == t])))
 DISC = {t: {"sens": refuse(grab([r for r in R if r["target"] == t])),
             "fp": refuse(ctrl([r for r in R if r["target"] == t]))} for t in TARGETS}
+# capability/tier proxy = Artificial Analysis Intelligence Index (single cross-provider
+# composite scale; non-reasoning variant where available, matching the low-effort runs)
+AAI = {"google/gemini-2.5-flash-lite": 7, "mistralai/ministral-14b-2512": 10,
+       "anthropic/claude-3-haiku": 12, "meta-llama/llama-4-maverick": 18,
+       "openai/gpt-5.4-nano": 24, "inception/mercury-2": 25,
+       "deepseek/deepseek-v4-pro": 31, "arcee-ai/trinity-large-thinking": 32,
+       "nvidia/nemotron-3-super-120b-a12b": 36, "qwen/qwen3.7-plus": 39,
+       "minimax/minimax-m3": 44}
+# power grabbing (positive+negative) refusal per model, for the capability-vs-refusal panel
+pgrab = lambda rows: [r for r in rows if r["mode"] == "positive+negative"]
+PGRAB = {t: refuse(pgrab([r for r in R if r["target"] == t])) for t in TARGETS}
+_short = lambda t: nm(t).split()[0]
+
+def _pearson(xs, ys):
+    n = len(xs); mx = sum(xs) / n; my = sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    vx = sum((x - mx) ** 2 for x in xs); vy = sum((y - my) ** 2 for y in ys)
+    return cov / ((vx * vy) ** 0.5) if vx > 0 and vy > 0 else 0.0
+
+CAP_R = _pearson([AAI[t] for t in TARGETS], [PGRAB[t] for t in TARGETS])
+
+def scatter_cap(xmax=50):
+    """Scatter: AA Intelligence Index (x) vs power-grabbing refusal (y), one dot
+    per model; right-gutter labels de-collided with leader lines."""
+    W, H = 600, 400
+    ml, mr, mt, mb = 54, 150, 20, 52
+    pw, ph = W - ml - mr, H - mt - mb
+    xof = lambda v: ml + pw * (v / xmax)
+    yof = lambda v: mt + ph * (1 - v / 100)
+    g = []
+    for k in range(0, 101, 20):
+        gy = yof(k)
+        g.append(f'<line x1="{ml}" y1="{gy:.1f}" x2="{ml+pw}" y2="{gy:.1f}" stroke="#2C3140" stroke-width="1"/>')
+        g.append(f'<text x="{ml-8}" y="{gy+4:.1f}" text-anchor="end" fill="#9A9789" font-size="11" font-family="ui-monospace,Menlo,monospace">{k}%</text>')
+    for k in range(0, xmax + 1, 10):
+        gx = xof(k)
+        g.append(f'<line x1="{gx:.1f}" y1="{mt}" x2="{gx:.1f}" y2="{mt+ph}" stroke="#2C3140" stroke-width="0.5"/>')
+        g.append(f'<text x="{gx:.1f}" y="{mt+ph+18:.0f}" text-anchor="middle" fill="#9A9789" font-size="11" font-family="ui-monospace,Menlo,monospace">{k}</text>')
+    axis = (f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>'
+            f'<line x1="{ml}" y1="{mt+ph}" x2="{ml+pw}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>')
+    titles = (f'<text x="{ml+pw/2:.0f}" y="{H-8}" text-anchor="middle" fill="#9A9789" font-size="11.5">Artificial Analysis Intelligence Index →</text>'
+              f'<text x="14" y="{mt+ph/2:.0f}" text-anchor="middle" fill="#9A9789" font-size="11.5" transform="rotate(-90 14 {mt+ph/2:.0f})">power grabbing rehusado →</text>')
+    items = sorted(TARGETS, key=lambda t: PGRAB[t])
+    gap, pos = 14.0, []
+    for t in items:
+        y = yof(PGRAB[t] * 100)
+        if pos and y < pos[-1] + gap:
+            y = pos[-1] + gap
+        pos.append(y)
+    over = pos[-1] - (mt + ph) if pos else 0
+    if over > 0:
+        pos = [p - over for p in pos]
+    lx = ml + pw + 10
+    body = []
+    for t, ly in zip(items, pos):
+        cx, cy = xof(AAI[t]), yof(PGRAB[t] * 100)
+        body.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{lx-3:.0f}" y2="{ly:.1f}" stroke="{COL[t]}" stroke-width="0.7" opacity="0.5"/>')
+        body.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{COL[t]}"/>')
+        body.append(f'<text x="{lx:.0f}" y="{ly+3.5:.1f}" fill="{COL[t]}" font-size="10.5">{_short(t)}</text>')
+    return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto;display:block" '
+            f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 LANG = {t: {l: refuse(grab([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
 # control rehusado (false positives) split by language
 FP_L = {t: {l: refuse(ctrl([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
@@ -298,6 +359,13 @@ footer {{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule); f
       {disc_rows()}
     </div>
     <p class="callout">Rango enorme: de <strong>{nm(TARGETS[0])}</strong> ({pct(DISC[TARGETS[0]]['sens'])}/{pct(DISC[TARGETS[0]]['fp'])}, casi <strong>no discrimina</strong>) a <strong>{nm(TARGETS[-1])}</strong>, que atrapa el {pct(DISC[TARGETS[-1]]['sens'])} de los grabs. Pero hay que mirar las barras grises: varios de los más sensibles también <strong>sobre-bloquean legítimos</strong> — y ese sobre-rechazo suele concentrarse en <strong>un idioma</strong>: <strong>{nm(FPGAP)}</strong> rehúsa el {pct(FP_L[FPGAP]['en'])} de los controles en inglés vs solo {pct(FP_L[FPGAP]['zh'])} en chino. El discriminador más <em>limpio</em> es <strong>{nm(CLEAN)}</strong>: {pct(DISC[CLEAN]['sens'])} de captura con solo {pct(DISC[CLEAN]['fp'])} de falsos positivos (parejo en ambos idiomas).</p>
+
+    <div class="kicker" style="margin-top:42px"><span class="num mono">01·c</span><h2>¿La capacidad predice el refusal?</h2><span class="q">tier (AA Index) vs power grabbing</span></div>
+    <p class="lede">Scatter de los <strong>11 modelos</strong>: <strong>tier</strong> (Artificial Analysis Intelligence Index, eje X) vs <strong>power grabbing rehusado</strong> (eje Y). Si rehusar grabs fuera cuestión de "ser más capaz", la nube subiría en diagonal.</p>
+    <div class="panel">
+      {scatter_cap()}
+    </div>
+    <p class="callout">La nube está <strong>desacoplada</strong> (correlación r = {CAP_R:.2f}): con 11 modelos, el tier <strong>no predice</strong> cuánto se rehúsa el power grabbing. <strong>{_short(max(TARGETS, key=lambda t: PGRAB[t]))}</strong> rehúsa lo más alto siendo de tier medio-bajo (índice {AAI[max(TARGETS, key=lambda t: PGRAB[t])]}), y el más capaz (<strong>{_short(max(TARGETS, key=lambda t: AAI[t]))}</strong>, índice {max(AAI.values())}) está en el montón. Rehusar power grabbing es <em>alineamiento/política</em>, no capacidad. <span class="rl-sub" style="font-size:11px;color:var(--muted)">AA Intelligence Index: compuesto en escala única entre proveedores; variante non-reasoning donde aplica.</span></p>
   </section>
 
   <section>

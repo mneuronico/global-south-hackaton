@@ -151,19 +151,54 @@ def disc_rows():
         </div></div>''')
     return "\n      ".join(out)
 
-def cap_rows():
-    """Capability/tier (Artificial Analysis Intelligence Index, 0-100) per model,
-    same order as section 01 (by power-grabbing refusal); refusal shown as a
-    sub-label for direct comparison. Bar scaled to a 0-50 window (index ceiling
-    for this panel) so the spread is legible."""
-    out = []
-    for t in TARGETS:
-        v = AAI[t]; note = f' · {AAI_NOTE[t]}' if AAI_NOTE[t] else ""
-        out.append(f'<div class="row"><div class="row-label">{nm(t)}<br>'
-                   f'<span class="rl-sub mono">p.grab {pct(DISC[t]["sens"])}{note}</span></div>'
-                   f'<div class="track tall"><div class="bar" style="--w:{v/50*100:.0f}%;--c:{COL[t]}"></div></div>'
-                   f'<div class="row-val mono">{v}</div></div>')
-    return "\n      ".join(out)
+def _pearson(xs, ys):
+    n = len(xs); mx = sum(xs) / n; my = sum(ys) / n
+    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    vx = sum((x - mx) ** 2 for x in xs); vy = sum((y - my) ** 2 for y in ys)
+    return cov / ((vx * vy) ** 0.5) if vx > 0 and vy > 0 else 0.0
+
+CAP_R = _pearson([AAI[t] for t in TARGETS], [DISC[t]["sens"] for t in TARGETS])
+
+def scatter_cap(xmax=50):
+    """Scatter: AA Intelligence Index (x) vs power-grabbing refusal (y), one dot
+    per model. Right-gutter labels, de-collided with leader lines."""
+    W, H = 600, 380
+    ml, mr, mt, mb = 54, 150, 20, 52
+    pw, ph = W - ml - mr, H - mt - mb
+    xof = lambda v: ml + pw * (v / xmax)
+    yof = lambda v: mt + ph * (1 - v / 100)
+    g = []
+    for k in range(0, 101, 20):
+        gy = yof(k)
+        g.append(f'<line x1="{ml}" y1="{gy:.1f}" x2="{ml+pw}" y2="{gy:.1f}" stroke="#2C3140" stroke-width="1"/>')
+        g.append(f'<text x="{ml-8}" y="{gy+4:.1f}" text-anchor="end" fill="#9A9789" font-size="11" font-family="ui-monospace,Menlo,monospace">{k}%</text>')
+    for k in range(0, xmax + 1, 10):
+        gx = xof(k)
+        g.append(f'<line x1="{gx:.1f}" y1="{mt}" x2="{gx:.1f}" y2="{mt+ph}" stroke="#2C3140" stroke-width="0.5"/>')
+        g.append(f'<text x="{gx:.1f}" y="{mt+ph+18:.0f}" text-anchor="middle" fill="#9A9789" font-size="11" font-family="ui-monospace,Menlo,monospace">{k}</text>')
+    axis = (f'<line x1="{ml}" y1="{mt}" x2="{ml}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>'
+            f'<line x1="{ml}" y1="{mt+ph}" x2="{ml+pw}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>')
+    titles = (f'<text x="{ml+pw/2:.0f}" y="{H-8}" text-anchor="middle" fill="#9A9789" font-size="11.5">Artificial Analysis Intelligence Index →</text>'
+              f'<text x="14" y="{mt+ph/2:.0f}" text-anchor="middle" fill="#9A9789" font-size="11.5" transform="rotate(-90 14 {mt+ph/2:.0f})">power grabbing rehusado →</text>')
+    items = sorted(TARGETS, key=lambda t: DISC[t]["sens"])
+    gap, pos = 15.0, []
+    for t in items:
+        y = yof(DISC[t]["sens"] * 100)
+        if pos and y < pos[-1] + gap:
+            y = pos[-1] + gap
+        pos.append(y)
+    over = pos[-1] - (mt + ph) if pos else 0
+    if over > 0:
+        pos = [p - over for p in pos]
+    lx = ml + pw + 10
+    body = []
+    for t, ly in zip(items, pos):
+        cx, cy = xof(AAI[t]), yof(DISC[t]["sens"] * 100)
+        body.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{lx-3:.0f}" y2="{ly:.1f}" stroke="{COL[t]}" stroke-width="0.7" opacity="0.5"/>')
+        body.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{COL[t]}"/>')
+        body.append(f'<text x="{lx:.0f}" y="{ly+3.5:.1f}" fill="{COL[t]}" font-size="11">{SHORT[t]}</text>')
+    return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto;display:block" '
+            f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 
 def disc_lang_rows():
     """Same as disc_rows but each metric (grabs refused / control refused)
@@ -397,11 +432,11 @@ footer {{ margin-top:46px; padding-top:18px; border-top:1px solid var(--rule); f
     <p class="callout">El idioma no es neutro. El sobre-rechazo de <strong>{nm(fpgap_model)}</strong> se concentra en <strong>{fpgap_hi.upper()}</strong> ({pct(FP_L[fpgap_hi][fpgap_model])} de control rehusado vs {pct(min(FP_L[l][fpgap_model] for l in LANGS))} en su idioma más laxo), y su sensibilidad también: {pct(max(SENS_L[l][fpgap_model] for l in LANGS))} en el idioma más estricto vs {pct(min(SENS_L[l][fpgap_model] for l in LANGS))} en el más laxo. El mismo modelo es <strong>otro</strong> según el idioma del pedido.</p>
 
     <div class="kicker" style="margin-top:42px"><span class="num mono">01·c</span><h2>¿La capacidad predice el refusal?</h2><span class="q">tier (AA Index) vs power grabbing</span></div>
-    <p class="lede">Tier de cada modelo según el <strong>Artificial Analysis Intelligence Index</strong> (compuesto, una sola escala entre proveedores), en el <strong>mismo orden</strong> que arriba. Si rehusar grabs fuera cuestión de "ser más capaz", tier y refusal subirían juntos.</p>
+    <p class="lede">Scatter: <strong>tier</strong> (Artificial Analysis Intelligence Index, eje X) vs <strong>power grabbing rehusado</strong> (eje Y), un punto por modelo. Si rehusar grabs fuera cuestión de "ser más capaz", los puntos subirían en diagonal.</p>
     <div class="panel">
-      {cap_rows()}
+      {scatter_cap()}
     </div>
-    <p class="callout">Están <strong>desacoplados</strong>. <strong>{nm(max(TARGETS, key=lambda t: DISC[t]['sens']))}</strong> es de los <strong>menos capaces</strong> (índice {AAI[max(TARGETS, key=lambda t: DISC[t]['sens'])]}) y el que <strong>más rehúsa</strong> ({pct(max(DISC[t]['sens'] for t in TARGETS))}); el <strong>más capaz</strong> ({nm(max(TARGETS, key=lambda t: AAI[t]))}, índice {max(AAI.values())}) rehúsa la mitad. El refusal de power grabbing es una propiedad de <em>alineamiento/política</em>, no de capacidad — no se compra "siendo más listo". <span class="rl-sub">AA Intelligence Index: compuesto de varios benchmarks en escala única; variante non-reasoning donde aplica, acorde a la corrida a esfuerzo low.</span></p>
+    <p class="callout">No suben en diagonal — están <strong>desacoplados</strong> (correlación r = {CAP_R:.2f}). <strong>{nm(max(TARGETS, key=lambda t: DISC[t]['sens']))}</strong> es de los <strong>menos capaces</strong> (índice {AAI[max(TARGETS, key=lambda t: DISC[t]['sens'])]}) y el que <strong>más rehúsa</strong> ({pct(max(DISC[t]['sens'] for t in TARGETS))}); el <strong>más capaz</strong> ({nm(max(TARGETS, key=lambda t: AAI[t]))}, índice {max(AAI.values())}) rehúsa la mitad. El refusal de power grabbing es una propiedad de <em>alineamiento/política</em>, no de capacidad. <span class="rl-sub">AA Intelligence Index: compuesto en escala única entre proveedores; variante non-reasoning donde aplica, acorde a la corrida a esfuerzo low.</span></p>
   </section>
 
   <section>
