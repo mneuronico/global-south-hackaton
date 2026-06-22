@@ -38,7 +38,7 @@ BEHAVIORS = ["comply", "partial", "refuse"]
 # Data loading
 # ---------------------------------------------------------------------------
 
-_CLEAN_CSV   = Path(__file__).parent / "data" / "dataset1.csv"
+_CLEAN_CSV   = Path(__file__).parent / "data" / "clean" / "dataset1_8langs.csv"
 _PROMPTS_DIR = _ROOT / "prompts"
 
 def load_results(path: str | Path = _CLEAN_CSV) -> pd.DataFrame:
@@ -163,15 +163,23 @@ def behavior_distribution(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def discrimination_score(df: pd.DataFrame) -> dict:
+_DEFAULT_CELL_DIMS = ["domain", "context", "mode", "scale", "lang"]
+
+
+def discrimination_score(df: pd.DataFrame, cell_dims: list[str] | None = None) -> dict:
     """
     Measures how well the benchmark separates models/conditions.
     - ceiling: fraction of cells where refusal rate > 0.9
     - floor:   fraction of cells where refusal rate < 0.1
     - spread:  std of per-prompt refusal rates across dimensions
     - entropy: Shannon entropy of the overall behavior distribution (max = log2(3) ≈ 1.585)
+
+    cell_dims controls the groupby key. Defaults to (domain, context, mode, scale, lang).
+    For multi-model datasets pass cell_dims that include "target".
     """
-    rates = df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"].mean()
+    if cell_dims is None:
+        cell_dims = _DEFAULT_CELL_DIMS
+    rates = df.groupby(cell_dims)["refused"].mean()
     overall_dist = df["behavior"].value_counts(normalize=True).reindex(BEHAVIORS, fill_value=0)
     H = float(scipy_entropy(overall_dist, base=2))
     return {
@@ -187,8 +195,9 @@ def discrimination_score(df: pd.DataFrame) -> dict:
     }
 
 
-def plot_refusal_rate_histogram(df: pd.DataFrame, ax: plt.Axes | None = None) -> plt.Axes:
-    rates = df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"].mean()
+def plot_refusal_rate_histogram(df: pd.DataFrame, ax: plt.Axes | None = None,
+                                cell_dims: list[str] | None = None) -> plt.Axes:
+    rates = df.groupby(cell_dims or _DEFAULT_CELL_DIMS)["refused"].mean()
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 4))
     ax.hist(rates, bins=20, range=(0, 1), color="#444444", edgecolor="white")
@@ -290,12 +299,14 @@ def plot_harm_flag_by_behavior(df: pd.DataFrame, ax: plt.Axes | None = None) -> 
 # 5. Item difficulty distribution
 # ---------------------------------------------------------------------------
 
-def item_difficulty(df: pd.DataFrame) -> pd.DataFrame:
+def item_difficulty(df: pd.DataFrame, cell_dims: list[str] | None = None) -> pd.DataFrame:
     """
     Per-cell refusal rate with Wilson CI.
     Cells with rate near 0 or 1 are low-information items (too easy or too hard).
+
+    cell_dims controls the groupby key. For multi-model datasets include "target".
     """
-    g = (df.groupby(["domain", "context", "mode", "scale", "lang"])["refused"]
+    g = (df.groupby(cell_dims or _DEFAULT_CELL_DIMS)["refused"]
            .agg(["sum", "count"])
            .reset_index()
            .rename(columns={"sum": "refusals", "count": "n"}))
@@ -310,14 +321,15 @@ def item_difficulty(df: pd.DataFrame) -> pd.DataFrame:
     return g.sort_values("rate").reset_index(drop=True)
 
 
-def difficulty_summary(df: pd.DataFrame) -> pd.DataFrame:
+def difficulty_summary(df: pd.DataFrame, cell_dims: list[str] | None = None) -> pd.DataFrame:
     """Counts per difficulty band."""
-    items = item_difficulty(df)
+    items = item_difficulty(df, cell_dims=cell_dims)
     return items["difficulty_band"].value_counts().rename("n_cells").reset_index()
 
 
-def plot_difficulty_bands(df: pd.DataFrame, ax: plt.Axes | None = None) -> plt.Axes:
-    items = item_difficulty(df)
+def plot_difficulty_bands(df: pd.DataFrame, ax: plt.Axes | None = None,
+                          cell_dims: list[str] | None = None) -> plt.Axes:
+    items = item_difficulty(df, cell_dims=cell_dims)
     band_colors = {
         "floor (<10%)":     "#BBBBBB",
         "easy (10-40%)":    "#888888",
@@ -342,8 +354,14 @@ def plot_difficulty_bands(df: pd.DataFrame, ax: plt.Axes | None = None) -> plt.A
 # Full report
 # ---------------------------------------------------------------------------
 
-def full_report(df: pd.DataFrame, prompts: pd.DataFrame | None = None) -> None:
-    """Print a compact benchmark quality report to stdout."""
+def full_report(df: pd.DataFrame, prompts: pd.DataFrame | None = None,
+                cell_dims: list[str] | None = None) -> None:
+    """Print a compact benchmark quality report to stdout.
+
+    cell_dims: groupby key for per-cell stats. Defaults to
+               (domain, context, mode, scale, lang). For multi-model datasets
+               pass cell_dims=["target", "domain", "context", "mode", "scale", "lang"].
+    """
     print("=" * 68)
     print("POWER-GRABBING BENCHMARK  —  DATASET QUALITY REPORT")
     print("=" * 68)
@@ -360,8 +378,9 @@ def full_report(df: pd.DataFrame, prompts: pd.DataFrame | None = None) -> None:
         print(f"    Complete tensor : {'YES' if cov['complete'] else 'NO  <-- FIX'}")
 
     # 2. Discrimination
-    disc = discrimination_score(df)
-    print(f"\n[2] DISCRIMINATION  (n={len(df)} runs)")
+    disc = discrimination_score(df, cell_dims=cell_dims)
+    _dims_label = ", ".join(cell_dims or _DEFAULT_CELL_DIMS)
+    print(f"\n[2] DISCRIMINATION  (n={len(df)} runs | cell={_dims_label})")
     print(f"    Mean refusal rate     : {disc['mean_refusal']:.1%}")
     print(f"    Std across cells      : {disc['std_refusal']:.3f}")
     print(f"    Ceiling cells (>90%)  : {disc['ceiling_cells']}/{disc['n_cells']}")
@@ -389,7 +408,7 @@ def full_report(df: pd.DataFrame, prompts: pd.DataFrame | None = None) -> None:
           "  ".join(f"{b}={v:.0%}" for b, v in jc["harm_flag_rate_by_behavior"].items()))
 
     # 5. Difficulty
-    dsumm = difficulty_summary(df)
+    dsumm = difficulty_summary(df, cell_dims=cell_dims)
     print(f"\n[5] ITEM DIFFICULTY  (per-cell refusal rate)")
     for _, row in dsumm.iterrows():
         print(f"    {row['difficulty_band']:20s} : {row['n_cells']} cells")

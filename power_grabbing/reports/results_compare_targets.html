@@ -1,0 +1,252 @@
+<title>Power-Grab Refusal — MiniMax vs Gemini (control humano)</title>
+<style>
+:root { --ground:#181B24; --panel:#1E2230; --text:#E9E6DC; --muted:#9A9789; --accent:#C9A24B; --teal:#57B0A8; --clay:#C0503C; --rule:#2C3140; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--ground); color:var(--text); font-family:-apple-system,system-ui,"Segoe UI",sans-serif; line-height:1.55; -webkit-font-smoothing:antialiased; }
+.mono { font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+.wrap { max-width:760px; margin:0 auto; padding:0 28px 96px; }
+.masthead { padding:64px 0 40px; border-bottom:1px solid var(--rule); }
+.eyebrow { font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 22px; }
+h1 { font-family:"Hoefler Text",Palatino,Georgia,serif; font-weight:600; font-size:clamp(34px,6vw,52px); line-height:1.05; letter-spacing:-.01em; margin:0 0 18px; }
+h1 em { font-style:italic; color:var(--accent); }
+.dek { font-size:17px; color:var(--muted); max-width:58ch; margin:0; }
+.meta { display:flex; gap:24px; flex-wrap:wrap; margin-top:28px; font-size:12.5px; color:var(--muted); }
+.meta b { color:var(--text); font-weight:600; }
+section { padding:54px 0 0; }
+.kicker { display:flex; align-items:baseline; gap:14px; margin:0 0 6px; }
+.kicker .num { font-size:13px; color:var(--accent); letter-spacing:.1em; }
+h2 { font-family:"Hoefler Text",Palatino,Georgia,serif; font-weight:600; font-size:27px; letter-spacing:-.01em; margin:0; }
+.lede { color:var(--muted); font-size:15.5px; margin:10px 0 26px; max-width:62ch; }
+.lede strong { color:var(--text); font-weight:600; }
+.panel { background:var(--panel); border:1px solid var(--rule); border-radius:3px; padding:26px 26px 20px; margin-top:8px; }
+.brow { margin-bottom:18px; } .brow:last-child { margin-bottom:4px; }
+.bname { display:flex; justify-content:space-between; align-items:baseline; font-size:14.5px; font-weight:600; margin-bottom:7px; }
+.bmean { color:var(--muted); font-weight:400; font-size:12px; }
+.bbar { display:flex; height:18px; border-radius:2px; overflow:hidden; background:#11131a; }
+.seg { height:100%; transition:width .9s cubic-bezier(.2,.7,.2,1); }
+.blegend { font-size:11.5px; color:var(--muted); margin-top:6px; }
+.gchart { display:flex; justify-content:space-around; gap:18px; padding:10px 4px 0; }
+.group { flex:1; }
+.gbars { display:flex; gap:8px; align-items:flex-end; height:150px; justify-content:center; }
+.gbar-wrap { display:flex; flex-direction:column; align-items:center; justify-content:flex-end; flex:1; max-width:46px; }
+.gtrack { width:100%; height:130px; display:flex; align-items:flex-end; }
+.gbar { width:100%; height:var(--h); background:var(--c); border-radius:2px 2px 0 0; transition:height 1s cubic-bezier(.2,.7,.2,1); }
+.gval { font-size:10.5px; color:var(--muted); margin-top:5px; }
+.glabel { text-align:center; font-size:11px; color:var(--text); margin-top:12px; padding-top:10px; border-top:1px solid var(--rule); }
+.legend { display:flex; gap:18px; flex-wrap:wrap; margin-top:20px; font-size:11.5px; color:var(--muted); }
+.legend span { display:inline-flex; align-items:center; gap:7px; }
+.dot { width:10px; height:10px; border-radius:2px; display:inline-block; }
+svg { width:100%; height:auto; }
+.grid { stroke:var(--rule); stroke-width:1; }
+.ytick { fill:var(--muted); font-size:10px; text-anchor:end; }
+.xtick { fill:var(--text); font-size:11px; text-anchor:middle; }
+.slabel { font-size:11px; }
+.callout { border-left:2px solid var(--accent); padding:4px 0 4px 18px; margin:24px 0 0; color:var(--text); font-size:15px; }
+.callout strong { color:var(--accent); }
+.st-row { display:grid; grid-template-columns:140px 1fr 1fr; align-items:center; gap:14px; padding:5px 0; }
+.st-h { margin-bottom:4px; }
+.st-label { font-size:12px; color:var(--text); text-align:right; }
+.st-head { font-size:11px; text-align:left; letter-spacing:.06em; }
+.st-cell { display:flex; align-items:center; gap:8px; }
+.st-cell .mono { font-size:11.5px; color:var(--muted); width:34px; }
+.st-track { flex:1; background:#11131a; border-radius:2px; height:13px; overflow:hidden; }
+.st-bar { height:100%; width:var(--w); background:var(--c); border-radius:2px; transition:width 1s; }
+.lc-row { display:grid; grid-template-columns:1fr 130px 130px; align-items:center; padding:13px 2px; border-bottom:1px solid var(--rule); }
+.lc-label { font-size:14px; } .lc-head { font-size:12px; text-align:right; letter-spacing:.06em; }
+.lc-val { font-size:22px; text-align:right; font-variant-numeric:tabular-nums; }
+.kpi { display:flex; gap:14px; flex-wrap:wrap; }
+.kpi .box { flex:1; min-width:150px; background:#191D29; border:1px solid var(--rule); border-radius:3px; padding:16px 18px; }
+.kpi .v { font-size:30px; font-variant-numeric:tabular-nums; } .kpi .l { font-size:12px; color:var(--muted); margin-top:4px; }
+.note { margin-top:54px; padding:24px 26px; border:1px dashed var(--rule); border-radius:3px; font-size:13px; color:var(--muted); }
+.note h3 { font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--accent); margin:0 0 12px; }
+.note ul { margin:0; padding-left:18px; } .note li { margin-bottom:7px; }
+.note code { font-family:ui-monospace,Menlo,monospace; color:var(--text); font-size:12px; }
+footer { margin-top:48px; padding-top:20px; border-top:1px solid var(--rule); font-size:11.5px; color:var(--muted); }
+@media (prefers-reduced-motion:reduce) { * { transition:none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Global South AI Safety Hackathon · Cruz del Sur</p>
+    <h1>Mismo banco, dos modelos:<br><em>MiniMax</em> vs <em>Gemini</em></h1>
+    <p class="dek">A/B controlado: el mismo dataset de 1728 (neutralizado a "human"), los mismos prompts, el mismo juez ciego (GPT-5.4-nano) y ambos a esfuerzo bajo. Lo único que cambia es el modelo objetivo, así que las diferencias se atribuyen al modelo.</p>
+    <div class="meta">
+      <div><span class="dot" style="background:#C0503C"></span> <b>MiniMax-M3</b> · 1714 válidas</div>
+      <div><span class="dot" style="background:#57B0A8"></span> <b>Gemini-2.5-Flash-Lite</b> · 1728 válidas</div>
+      <div>Juez · <b>GPT-5.4-nano</b> ciego</div>
+    </div>
+  </header>
+
+  <section>
+    <div class="kicker"><span class="num mono">01</span><h2>La conducta</h2></div>
+    <p class="lede">Sobre el mismo banco, <strong>Gemini rehúsa 42% vs 56% de MiniMax</strong>: el ancla permisiva cumple mucho más.</p>
+    <div class="panel">
+      <div class="brow"><div class="bname">MiniMax-M3<span class="bmean mono">56% rehúsa</span></div>
+        <div class="bbar"><div class="seg" style="width:31.2%;background:#57B0A8"></div>
+          <div class="seg" style="width:12.8%;background:#C9A24B"></div>
+          <div class="seg" style="width:56.1%;background:#C0503C"></div></div>
+        <div class="blegend mono">534 cumple · 219 parcial · 961 rehúsa</div></div>
+      <div class="brow"><div class="bname">Gemini-2.5-Flash-Lite<span class="bmean mono">42% rehúsa</span></div>
+        <div class="bbar"><div class="seg" style="width:48.1%;background:#57B0A8"></div>
+          <div class="seg" style="width:10.1%;background:#C9A24B"></div>
+          <div class="seg" style="width:41.7%;background:#C0503C"></div></div>
+        <div class="blegend mono">832 cumple · 175 parcial · 721 rehúsa</div></div>
+      <div class="legend"><span><i class="dot" style="background:#57B0A8"></i>cumple</span><span><i class="dot" style="background:#C9A24B"></i>parcial</span><span><i class="dot" style="background:#C0503C"></i>rehúsa</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">02</span><h2>Las tres métricas</h2></div>
+    <p class="lede">Gemini baja en las tres. Lo notable: su <strong>sobre-rechazo es casi nulo (0%)</strong> — casi nunca rechaza un control legítimo — pero su sensibilidad también cae (62% vs 78%): deja pasar más grabs.</p>
+    <div class="panel"><div class="lc-row lc-h"><div class="lc-label"></div><div class="lc-head mono" style="color:#C0503C">MiniMax-M3</div><div class="lc-head mono" style="color:#57B0A8">Gemini-2.5-Flash-Lite</div></div>
+      <div class="lc-row"><div class="lc-label">Sobre-rechazo (control)</div><div class="lc-val mono" style="color:#C0503C">13%</div><div class="lc-val mono" style="color:#57B0A8">0%</div></div>
+      <div class="lc-row"><div class="lc-label">Sensibilidad (grabs)</div><div class="lc-val mono" style="color:#C0503C">78%</div><div class="lc-val mono" style="color:#57B0A8">62%</div></div>
+      <div class="lc-row"><div class="lc-label">Harm-flagging</div><div class="lc-val mono" style="color:#C0503C">72%</div><div class="lc-val mono" style="color:#57B0A8">67%</div></div></div>
+    <p class="callout">Dos perfiles de seguridad: MiniMax es <strong>más cauto pero con más falsos positivos</strong> (sobre-rechazo 13%); Gemini es <strong>casi sin fricción en lo legítimo</strong> pero <strong>más permisivo con los grabs</strong>.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">03</span><h2>El modo manda — en los dos</h2></div>
+    <p class="lede">El patrón cualitativo se conserva (sumar≈no rechaza, restar dispara), pero Gemini queda por debajo en cada modo. En "solo sumar" Gemini es prácticamente <strong>0%</strong>.</p>
+    <div class="panel"><div class="gchart"><div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:12.5%;--c:#C0503C"></div></div>
+          <div class="gval mono">13%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:0.3%;--c:#57B0A8"></div></div>
+          <div class="gval mono">0%</div></div></div><div class="glabel mono">Solo sumar</div></div>
+      <div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:70.5%;--c:#C0503C"></div></div>
+          <div class="gval mono">70%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:56.6%;--c:#57B0A8"></div></div>
+          <div class="gval mono">57%</div></div></div><div class="glabel mono">Sumar y restar</div></div>
+      <div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:84.6%;--c:#C0503C"></div></div>
+          <div class="gval mono">85%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:68.2%;--c:#57B0A8"></div></div>
+          <div class="gval mono">68%</div></div></div><div class="glabel mono">Solo restar</div></div></div>
+      <div class="legend"><span><i class="dot" style="background:#C0503C"></i>MiniMax-M3</span><span><i class="dot" style="background:#57B0A8"></i>Gemini-2.5-Flash-Lite</span></div></div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">04</span><h2>La escala</h2></div>
+    <p class="lede">Misma forma (U leve, mínimo en grupo, repunte en sociedad) pero Gemini desplazado ~15 pts hacia abajo en toda la curva.</p>
+    <div class="panel"><svg viewBox="0 0 520 250" role="img">
+<line x1="50" y1="155.7" x2="370" y2="155.7" class="grid"/>
+<text x="42" y="159.7" class="ytick mono">20%</text>
+<line x1="50" y1="101.4" x2="370" y2="101.4" class="grid"/>
+<text x="42" y="105.4" class="ytick mono">40%</text>
+<line x1="50" y1="47.1" x2="370" y2="47.1" class="grid"/>
+<text x="42" y="51.1" class="ytick mono">60%</text>
+<text x="50.0" y="236" class="xtick mono">Individual</text>
+<text x="210.0" y="236" class="xtick mono">Grupo</text>
+<text x="370.0" y="236" class="xtick mono">Sociedad</text>
+<polyline points="50.0,65.8 210.0,68.6 370.0,38.9" fill="none" stroke="#C0503C" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="50.0" cy="65.8" r="4" fill="#C0503C"/>
+<circle cx="210.0" cy="68.6" r="4" fill="#C0503C"/>
+<circle cx="370.0" cy="38.9" r="4" fill="#C0503C"/>
+<text x="382.0" y="42.9" class="slabel mono" fill="#C0503C">MiniMax-M3</text>
+<polyline points="50.0,93.6 210.0,112.9 370.0,83.7" fill="none" stroke="#57B0A8" stroke-width="2.5" stroke-linejoin="round"/>
+<circle cx="50.0" cy="93.6" r="4" fill="#57B0A8"/>
+<circle cx="210.0" cy="112.9" r="4" fill="#57B0A8"/>
+<circle cx="370.0" cy="83.7" r="4" fill="#57B0A8"/>
+<text x="382.0" y="87.7" class="slabel mono" fill="#57B0A8">Gemini-2.5-Flash-Lite</text>
+</svg>
+      <div class="legend"><span><i class="dot" style="background:#C0503C"></i>MiniMax-M3</span><span><i class="dot" style="background:#57B0A8"></i>Gemini-2.5-Flash-Lite</span></div></div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">05</span><h2>Dónde divergen más</h2></div>
+    <p class="lede">Refusal por dominio y contexto (Δ Gemini−MiniMax a la izquierda). La brecha es mayor en lo <strong>institucional</strong>.</p>
+    <div class="panel">
+      <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:.12em;margin-bottom:10px">DOMINIO</div>
+      <div class="st-row st-h"><div class="st-label"></div><div class="st-head mono" style="color:#C0503C">MiniMax-M3</div><div class="st-head mono" style="color:#57B0A8">Gemini-2.5-Flash-Lite</div></div>
+      <div class="st-row"><div class="st-label mono">Wealth <span style="color:var(--muted)">-9</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:66.8%;--c:#C0503C"></div></div><span class="mono">67%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:57.9%;--c:#57B0A8"></div></div><span class="mono">58%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Legal <span style="color:var(--muted)">-22</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:62.3%;--c:#C0503C"></div></div><span class="mono">62%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:40.7%;--c:#57B0A8"></div></div><span class="mono">41%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Physical <span style="color:var(--muted)">-16</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:61.4%;--c:#C0503C"></div></div><span class="mono">61%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:45.8%;--c:#57B0A8"></div></div><span class="mono">46%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Epistemic <span style="color:var(--muted)">-20</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:59.8%;--c:#C0503C"></div></div><span class="mono">60%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:40.3%;--c:#57B0A8"></div></div><span class="mono">40%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Health <span style="color:var(--muted)">-11</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:55.9%;--c:#C0503C"></div></div><span class="mono">56%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:44.4%;--c:#57B0A8"></div></div><span class="mono">44%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Status <span style="color:var(--muted)">-7</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:54.4%;--c:#C0503C"></div></div><span class="mono">54%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:47.2%;--c:#57B0A8"></div></div><span class="mono">47%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Rank <span style="color:var(--muted)">-12</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:45.8%;--c:#C0503C"></div></div><span class="mono">46%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:33.8%;--c:#57B0A8"></div></div><span class="mono">34%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Attentional <span style="color:var(--muted)">-18</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:42.1%;--c:#C0503C"></div></div><span class="mono">42%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:23.6%;--c:#57B0A8"></div></div><span class="mono">24%</span></div></div>
+      <div class="mono" style="font-size:11px;color:var(--muted);letter-spacing:.12em;margin:22px 0 10px">CONTEXTO</div>
+      <div class="st-row st-h"><div class="st-label"></div><div class="st-head mono" style="color:#C0503C">MiniMax-M3</div><div class="st-head mono" style="color:#57B0A8">Gemini-2.5-Flash-Lite</div></div>
+      <div class="st-row"><div class="st-label mono">Government <span style="color:var(--muted)">-29</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:71.8%;--c:#C0503C"></div></div><span class="mono">72%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:43.1%;--c:#57B0A8"></div></div><span class="mono">43%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Academia <span style="color:var(--muted)">-13</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:67.4%;--c:#C0503C"></div></div><span class="mono">67%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:54.2%;--c:#57B0A8"></div></div><span class="mono">54%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Interpersonal <span style="color:var(--muted)">-12</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:63.0%;--c:#C0503C"></div></div><span class="mono">63%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:50.5%;--c:#57B0A8"></div></div><span class="mono">50%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Work <span style="color:var(--muted)">-13</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:62.5%;--c:#C0503C"></div></div><span class="mono">62%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:49.5%;--c:#57B0A8"></div></div><span class="mono">50%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Media <span style="color:var(--muted)">-9</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:62.5%;--c:#C0503C"></div></div><span class="mono">62%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:53.2%;--c:#57B0A8"></div></div><span class="mono">53%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Diplomacy <span style="color:var(--muted)">-23</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:55.6%;--c:#C0503C"></div></div><span class="mono">56%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:32.4%;--c:#57B0A8"></div></div><span class="mono">32%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Markets <span style="color:var(--muted)">-7</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:54.0%;--c:#C0503C"></div></div><span class="mono">54%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:46.8%;--c:#57B0A8"></div></div><span class="mono">47%</span></div></div>
+      <div class="st-row"><div class="st-label mono">Fiction <span style="color:var(--muted)">-6</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:9.7%;--c:#C0503C"></div></div><span class="mono">10%</span></div>
+        <div class="st-cell"><div class="st-track"><div class="st-bar" style="--w:4.2%;--c:#57B0A8"></div></div><span class="mono">4%</span></div></div>
+    </div>
+    <p class="callout">La mayor divergencia es <strong>Government</strong> (72% MiniMax → 43% Gemini) y <strong>Diplomacy</strong> (56%→32%): Gemini es mucho menos cauto con el poder en instituciones del Estado. Ambos coinciden en que <strong>Fiction</strong> casi no se rechaza.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">06</span><h2>El poder previo: un reflejo solo de MiniMax</h2></div>
+    <p class="lede">Sobre-rechazo en "solo sumar" según el poder previo del actor. MiniMax <strong>desconfía del ya-dominante</strong> (salta a 20% con poder alto); Gemini se queda plano en ~1%: no penaliza el atrincheramiento.</p>
+    <div class="panel"><div class="gchart"><div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:9.6%;--c:#C0503C"></div></div>
+          <div class="gval mono">10%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:0.5%;--c:#57B0A8"></div></div>
+          <div class="gval mono">1%</div></div></div><div class="glabel mono">Bajo</div></div>
+      <div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:7.5%;--c:#C0503C"></div></div>
+          <div class="gval mono">7%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:0.0%;--c:#57B0A8"></div></div>
+          <div class="gval mono">0%</div></div></div><div class="glabel mono">Medio</div></div>
+      <div class="group"><div class="gbars"><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:20.4%;--c:#C0503C"></div></div>
+          <div class="gval mono">20%</div></div><div class="gbar-wrap"><div class="gtrack"><div class="gbar" style="--h:0.5%;--c:#57B0A8"></div></div>
+          <div class="gval mono">1%</div></div></div><div class="glabel mono">Alto</div></div></div>
+      <div class="legend"><span><i class="dot" style="background:#C0503C"></i>MiniMax-M3</span><span><i class="dot" style="background:#57B0A8"></i>Gemini-2.5-Flash-Lite</span></div></div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">07</span><h2>¿Coinciden prompt a prompt?</h2></div>
+    <p class="lede">Sobre los 1714 prompts evaluados por ambos, coinciden en conducta exacta el <strong>73%</strong>. La discrepancia es casi toda en una dirección.</p>
+    <div class="panel"><div class="kpi">
+      <div class="box"><div class="v mono">692</div><div class="l">rehúsan AMBOS</div></div>
+      <div class="box"><div class="v mono" style="color:#C0503C">269</div><div class="l">solo MiniMax rehúsa</div></div>
+      <div class="box"><div class="v mono" style="color:#57B0A8">29</div><div class="l">solo Gemini rehúsa</div></div>
+    </div></div>
+    <p class="callout">MiniMax rehúsa <strong>269</strong> pedidos que Gemini cumple; Gemini rehúsa solo <strong>29</strong> que MiniMax cumple. Casi todo el "extra" de cautela es de MiniMax.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">08</span><h2>Las seis mayores divergencias</h2></div>
+    <div class="panel"><ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9"><li><b>Government</b>: MiniMax 72% → Gemini 43% <span class="mono" style="color:var(--accent)">(-29 pts)</span></li><li><b>Diplomacy</b>: MiniMax 56% → Gemini 32% <span class="mono" style="color:var(--accent)">(-23 pts)</span></li><li><b>Legal</b>: MiniMax 62% → Gemini 41% <span class="mono" style="color:var(--accent)">(-22 pts)</span></li><li><b>Epistemic</b>: MiniMax 60% → Gemini 40% <span class="mono" style="color:var(--accent)">(-20 pts)</span></li><li><b>Attentional</b>: MiniMax 42% → Gemini 24% <span class="mono" style="color:var(--accent)">(-18 pts)</span></li><li><b>society</b>: MiniMax 63% → Gemini 47% <span class="mono" style="color:var(--accent)">(-17 pts)</span></li></ul></div>
+  </section>
+
+  <div class="note">
+    <h3>Método y advertencias</h3>
+    <ul>
+      <li><strong>A/B controlado de verdad:</strong> mismo dataset (1728, neutralizado a "human"), mismos prompts, mismo system prompt, mismo juez GPT-5.4-nano ciego, ambos targets @ esfuerzo low, temp 0. Solo cambia el modelo.</li>
+      <li>Métrica: refusal (behavior=="refuse") + harm-flagging. Legitimidad vía <code>mode</code> (positive=control). Partials = no-refusal. <strong>Respuestas vacías excluidas</strong> (MiniMax 14 vacías por truncado de razonamiento; Gemini 0).</li>
+      <li>N limpio: 1714 (MiniMax) vs 1728 (Gemini). Un solo juez; falta κ contra etiquetas humanas.</li>
+      <li>Lectura: Gemini = "permissive anchor" del panel; MiniMax = el extremo cauto. Ninguno es "correcto" — fijan el rango del benchmark.</li>
+    </ul>
+  </div>
+
+  <footer>Power-Grab Refusal Benchmark · MiniMax vs Gemini · <code>experiment_nationality_human_full.json</code> + <code>experiment_nationality_human_gemini_full.json</code></footer>
+</div>

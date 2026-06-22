@@ -36,6 +36,11 @@ warnings.filterwarnings("ignore")
 SRC = "experiment_dyads_results.json"
 OUT = "results_report_dyads.html"
 GRADED = ("comply", "partial", "refuse")
+# Which modes count as a "grab" for the grab-focused analyses (sections 02/03/06/07).
+# Set to ("positive+negative",) to study ONLY the pure self-interested-AND-harmful grab,
+# or ("negative", "positive+negative") to pool both illegitimate modes.
+GRAB_MODES = ("positive+negative",)
+GRAB_LABEL = "pos+neg" if GRAB_MODES == ("positive+negative",) else "neg + pos+neg"
 MODES = ["positive", "negative", "positive+negative"]
 MODE_LABEL = {"positive": "positive", "negative": "negative", "positive+negative": "pos+neg"}
 POWERS = ["low", "med", "high"]
@@ -63,7 +68,7 @@ def is_refuse(b):
 
 
 def is_grab(r):
-    return r["mode"] in ("negative", "positive+negative")
+    return r["mode"] in GRAB_MODES
 
 
 def country_cat(nat):
@@ -181,8 +186,9 @@ def fit_glmm_grabs(t):
         for t_, _ in terms:
             if t_ in cl.params:
                 clog[t_] = (np.exp(cl.params[t_]), np.exp(cci.loc[t_, 0]), np.exp(cci.loc[t_, 1]), cl.pvalues[t_])
+    mode_term = "+ C(mode) " if g["mode"].nunique() > 1 else ""  # drop if only one grab mode
     fml = ("refuse ~ C(user_cat, Treatment('Other')) + C(aff_cat, Treatment('Other')) "
-           "+ C(mode) + C(power) + C(domain) + C(context)")
+           f"{mode_term}+ C(power) + C(domain) + C(context)")
     m = BinomialBayesMixedGLM.from_formula(fml, {"prompt": "0 + C(prompt)"}, g)
     res = m.fit_vb(verbose=False)
     nm = {"user_US": "C(user_cat, Treatment('Other'))[T.US]", "user_China": "C(user_cat, Treatment('Other'))[T.China]",
@@ -420,16 +426,16 @@ footer {{ margin-top:48px; padding-top:20px; border-top:1px solid var(--rule); f
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">02</span><h2>Rechazo en los grabs — modelos comparados</h2></div>
-    <p class="lede">Colapsando <strong>negative + pos+neg</strong>, sensibilidad real de cada díada. Acá se ve de un vistazo si un modelo está en el techo y el otro no.</p>
+    <div class="kicker"><span class="num mono">02</span><h2>Rechazo en los grabs (solo <em>pos+neg</em>) — modelos comparados</h2></div>
+    <p class="lede">Solo el modo <strong>positive+negative</strong> (el actor gana <em>y</em> daña al tercero — el power-grab puro). Sensibilidad real de cada díada; se ve de un vistazo si un modelo está en el techo y el otro no.</p>
     <div class="panel">{s02}
       <div class="legend">{''.join(f'<span><span class="dot" style="background:{tcolor(t)}"></span>{tlabel(t)}</span>' for t in targets)}</div>
     </div>
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">03</span><h2>Asimetría direccional en grabs (con significancia)</h2></div>
-    <p class="lede">Por par, las dos direcciones sobre los grabs (diseño <strong>pareado por prompt</strong> → <strong>McNemar exacto</strong>, Holm sobre 4). <span style="color:var(--clay)">A→B</span> vs <span style="color:var(--teal)">B→A</span>.</p>
+    <div class="kicker"><span class="num mono">03</span><h2>Asimetría direccional en grabs <em>pos+neg</em> (con significancia)</h2></div>
+    <p class="lede">Por par, las dos direcciones sobre los grabs <strong>positive+negative</strong> (diseño <strong>pareado por prompt</strong> → <strong>McNemar exacto</strong>, Holm sobre 4). <span style="color:var(--clay)">A→B</span> vs <span style="color:var(--teal)">B→A</span>.</p>
     <div class="panel">{s03}</div>
   </section>
 
@@ -446,19 +452,19 @@ footer {{ margin-top:48px; padding-top:20px; border-top:1px solid var(--rule); f
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">06</span><h2>Rechazo en grabs por poder, en cada díada</h2></div>
-    <p class="lede">Colapsando <strong>negative + pos+neg</strong>, el rechazo a grabs según el poder previo del usuario, por díada.</p>
+    <div class="kicker"><span class="num mono">06</span><h2>Rechazo en grabs <em>pos+neg</em> por poder, en cada díada</h2></div>
+    <p class="lede">Solo <strong>positive+negative</strong>, el rechazo a grabs según el poder previo del usuario, por díada.</p>
     <div class="panel">{s06}</div>
   </section>
 
   <section>
-    <div class="kicker"><span class="num mono">07</span><h2>Modelo mixto: ¿pesa el país de la víctima en los grabs?</h2></div>
-    <p class="lede">El test riguroso, <strong>por modelo</strong>. Sobre los power-grabs (positives excluidos por diseño), rechazo ~ nacionalidad de usuario y afectado (US / China / Otro, ref = Otro), agrupando por <strong>prompt</strong> — lo que controla <em>exactamente</em> por dominio, contexto, modo, escala y poder. Dos estimadores: ConditionalLogit pareado y GLMM bayesiano de intercepto aleatorio. <strong>OR &lt; 1 ⇒ rechaza menos que "Otro".</strong></p>
+    <div class="kicker"><span class="num mono">07</span><h2>Modelo mixto: ¿pesa el país en los grabs <em>pos+neg</em>?</h2></div>
+    <p class="lede">El test riguroso, <strong>por modelo</strong>. Solo el modo <strong>positive+negative</strong> (positives y negative excluidos por diseño), rechazo ~ nacionalidad de usuario y afectado (US / China / Otro, ref = Otro), agrupando por <strong>prompt</strong> — lo que controla <em>exactamente</em> por dominio, contexto, escala y poder. Dos estimadores: ConditionalLogit pareado y GLMM bayesiano de intercepto aleatorio. <strong>OR &lt; 1 ⇒ rechaza menos que "Otro".</strong></p>
     <div class="panel">
       {s07}
       <div class="subhead" style="margin-top:16px;margin-bottom:0">{glm_meta} · resaltado = 95% excluye OR=1 (clogit p&lt;.05)</div>
     </div>
-    <p class="callout"><strong>Comparación — los sesgos NO replican entre modelos:</strong> <span style="color:var(--clay)">MiniMax</span> se fija en <strong>quién es la víctima</strong> — protege <em>menos</em> a las víctimas estadounidenses (afectado=US, OR≈0.14–0.22, p=0.001 robusto), y le da igual quién pide. <span style="color:var(--teal)">Gemini</span> hace lo opuesto: se fija en <strong>quién pide</strong> — es <em>más</em> cauteloso cuando el usuario es de una superpotencia (usuario=US OR≈1.96, usuario=China OR≈1.79; p≈0.03–0.04, no sobreviven Bonferroni), y la nacionalidad de la víctima no le importa. Que el efecto sea <strong>específico de cada modelo</strong> sugiere que estos sesgos son idiosincrasias del entrenamiento, no una propiedad general — y que Gemini, al no estar en el techo, permite verlo con potencia real.</p>
+    <p class="callout"><strong>Comparación (solo pos+neg) — los sesgos NO replican entre modelos:</strong> <span style="color:var(--clay)">MiniMax</span> se fija en <strong>quién es la víctima</strong> — protege <em>menos</em> a las víctimas estadounidenses (afectado=US OR≈0.16–0.23, <strong>p=0.003, robusto</strong>), y le da igual quién pide. <span style="color:var(--teal)">Gemini</span> apunta en la dirección opuesta — <strong>quién pide</strong>: tiende a ser <em>más</em> cauteloso cuando el usuario es de una superpotencia (usuario=US OR≈2.25, usuario=China OR≈2.27), pero al restringir a pos+neg quedan pocos prompts informativos (25) y el efecto cae a <strong>no-significativo</strong> (p≈0.06–0.07). Que el patrón sea <strong>específico de cada modelo</strong> sugiere idiosincrasias del entrenamiento, no una propiedad general; el único efecto firme sigue siendo afectado=US en MiniMax.</p>
   </section>
 
   <div class="note">

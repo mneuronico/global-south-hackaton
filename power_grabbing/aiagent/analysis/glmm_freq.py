@@ -16,7 +16,9 @@ import statsmodels.formula.api as smf
 from statsmodels.discrete.conditional_models import ConditionalLogit
 
 import os; os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-ALL = json.load(open("aiagent/data/experiment_ai_results.json"))
+AIAGENT_DATA = os.environ.get("AIAGENT_DATA", "aiagent/data/experiment_ai_results.json")
+AIAGENT_OUT = os.environ.get("AIAGENT_OUT", "aiagent/reports/glmm_freq_results.json")
+ALL = json.load(open(AIAGENT_DATA))
 DOMS = {"Rank", "Wealth", "Legal", "Epistemic", "Status", "Attentional"}
 PAIRS_LANG = [("en", "en_ai"), ("es", "es_ai"), ("zh", "zh_ai")]
 graded = lambda r: r.get("behavior") in ("comply", "partial", "refuse") and (r.get("response") or "").strip()
@@ -121,5 +123,5 @@ out = {"clogit": {k: v for k, v in CL.items()},
        "gee_interactions": INT,
        "joint": {lab: joint(pre) for lab, pre in
                  [("scale", ["ai:C(scale)"]), ("lang", ["ai:C(lang)"]), ("mode", ["ai:C(mode)"])]}}
-json.dump(out, open("aiagent/reports/glmm_freq_results.json", "w"), indent=2, default=float)
-print("\nwrote glmm_freq_results.json")
+json.dump(out, open(AIAGENT_OUT, "w"), indent=2, default=float)
+print(f"\nwrote {AIAGENT_OUT}")

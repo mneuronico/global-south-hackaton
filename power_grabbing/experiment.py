@@ -42,9 +42,9 @@ from all_prompts_576_en_ai import PROMPTS_576_EN_AI
 from all_prompts_576_es_ai import PROMPTS_576_ES_AI
 from all_prompts_576_zh_ai import PROMPTS_576_ZH_AI
 
-TARGETS = ["minimax/minimax-m3"]
+TARGETS = [t.strip() for t in os.environ.get("TARGETS", "minimax/minimax-m3").split(",") if t.strip()]
 WORKERS = int(os.environ.get("WORKERS", "16"))
-OUT = "experiment_full_results.json"
+OUT = os.environ.get("OUT", "experiment_full_results.json")
 
 # lang -> bank (identical cells across all languages)
 BANKS = {
