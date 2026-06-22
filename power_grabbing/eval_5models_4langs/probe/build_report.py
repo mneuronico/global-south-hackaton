@@ -108,9 +108,25 @@ def scatter_cap(xmax=50):
     return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto;display:block" '
             f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 LANG = {t: {l: refuse(grab([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
-# control rehusado (false positives) split by language
+# power seeking (control/fp), power grabbing and disempowerment, split by language
 FP_L = {t: {l: refuse(ctrl([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
+PG_L = {t: {l: refuse(pgrab([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
+DS_L = {t: {l: refuse(disemp([r for r in R if r["target"] == t and r["lang"] == l])) for l in ("en", "zh")} for t in TARGETS}
 FPGAP = max(TARGETS, key=lambda t: abs(FP_L[t]["en"] - FP_L[t]["zh"]))
+
+def disc_lang_rows():
+    """01b: the three modes by language (EN/ZH) per model, like the main report."""
+    LCOL = {"en": "#C0503C", "zh": "#C9A24B"}
+    def grp(tag, data, color, t):
+        return "".join(
+            f'<div class="dc-line"><span class="dc-tag">{tag} · <b style="color:{LCOL[l]}">{l.upper()}</b></span>'
+            f'<div class="track"><div class="bar" style="--w:{w(data[t][l])}%;--c:{color}"></div></div>'
+            f'<span class="dc-val mono">{pct(data[t][l])}</span></div>' for l in ("en", "zh"))
+    out = []
+    for t in sorted(TARGETS, key=lambda t: PGRAB[t]):
+        rows = grp("p.grab", PG_L, COL[t], t) + grp("disemp", DS_L, "#5a6170", t) + grp("p.seek", FP_L, "#3a4150", t)
+        out.append(f'<div class="dc"><div class="dc-name">{nm(t)} <span class="fam">{FAMILY[t]}</span></div><div class="dc-bars">{rows}</div></div>')
+    return "\n      ".join(out)
 MODES = ["positive", "positive+negative", "negative"]
 MODE_LABEL = {"positive": "Solo sumar (control legítimo)", "positive+negative": "Sumar y restar (grab)", "negative": "Solo restar poder ajeno (grab)"}
 MODE_REF = {m: refuse([r for r in R if r["mode"] == m]) for m in MODES}
@@ -343,6 +359,12 @@ footer {{ margin-top:44px; padding-top:18px; border-top:1px solid var(--rule); f
       {disc_rows()}
     </div>
     <p class="callout">Mismo patrón que el general, ahora robusto en 11 modelos: <strong>el power grabbing se rehúsa MENOS que su control de disempowerment</strong> en todos — la barra de color queda por debajo de la gris-media. No hay detector de "grab"; el rechazo lo explica el daño. <strong>{nm(max(TARGETS, key=lambda t: PGRAB[t]))}</strong> es el que más rehúsa ({pct(max(PGRAB[t] for t in TARGETS))}); el power seeking (over-refusal) es bajo salvo los más estrictos (Claude/Mercury, ~20%).</p>
+
+    <div class="kicker" style="margin-top:42px"><span class="num mono">01·b</span><h2>Los tres modos por idioma</h2><span class="q">EN · ZH</span></div>
+    <p class="lede">Los mismos tres modos abiertos por idioma (inglés / chino): <strong>power grabbing</strong> (color), <strong>disempowerment</strong> (gris medio) y <strong>power seeking</strong> (gris oscuro). Expone dónde el idioma mueve la aguja en cada uno.</p>
+    <div class="panel">
+      {disc_lang_rows()}
+    </div>
 
     <div class="kicker" style="margin-top:42px"><span class="num mono">01·c</span><h2>¿La capacidad predice el refusal?</h2><span class="q">tier (AA Index) vs power grabbing</span></div>
     <p class="lede">Scatter de los <strong>11 modelos</strong>: <strong>tier</strong> (Artificial Analysis Intelligence Index, eje X) vs <strong>power grabbing rehusado</strong> (eje Y). Si rehusar grabs fuera cuestión de "ser más capaz", la nube subiría en diagonal.</p>
