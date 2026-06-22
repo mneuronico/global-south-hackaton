@@ -163,7 +163,7 @@ def scatter_cap(xmax=50):
     """Scatter: AA Intelligence Index (x) vs power-grabbing refusal (y), one dot
     per model. Right-gutter labels, de-collided with leader lines."""
     W, H = 600, 380
-    ml, mr, mt, mb = 54, 150, 20, 52
+    ml, mr, mt, mb = 54, 78, 20, 52
     pw, ph = W - ml - mr, H - mt - mb
     xof = lambda v: ml + pw * (v / xmax)
     yof = lambda v: mt + ph * (1 - v / 100)
@@ -180,23 +180,11 @@ def scatter_cap(xmax=50):
             f'<line x1="{ml}" y1="{mt+ph}" x2="{ml+pw}" y2="{mt+ph}" stroke="#3a4150" stroke-width="1.5"/>')
     titles = (f'<text x="{ml+pw/2:.0f}" y="{H-8}" text-anchor="middle" fill="#9A9789" font-size="11.5">Artificial Analysis Intelligence Index →</text>'
               f'<text x="14" y="{mt+ph/2:.0f}" text-anchor="middle" fill="#9A9789" font-size="11.5" transform="rotate(-90 14 {mt+ph/2:.0f})">power grabbing rehusado →</text>')
-    items = sorted(TARGETS, key=lambda t: DISC[t]["sens"])
-    gap, pos = 15.0, []
-    for t in items:
-        y = yof(DISC[t]["sens"] * 100)
-        if pos and y < pos[-1] + gap:
-            y = pos[-1] + gap
-        pos.append(y)
-    over = pos[-1] - (mt + ph) if pos else 0
-    if over > 0:
-        pos = [p - over for p in pos]
-    lx = ml + pw + 10
     body = []
-    for t, ly in zip(items, pos):
+    for t in TARGETS:
         cx, cy = xof(AAI[t]), yof(DISC[t]["sens"] * 100)
-        body.append(f'<line x1="{cx:.1f}" y1="{cy:.1f}" x2="{lx-3:.0f}" y2="{ly:.1f}" stroke="{COL[t]}" stroke-width="0.7" opacity="0.5"/>')
         body.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="5" fill="{COL[t]}"/>')
-        body.append(f'<text x="{lx:.0f}" y="{ly+3.5:.1f}" fill="{COL[t]}" font-size="11">{SHORT[t]}</text>')
+        body.append(f'<text x="{cx+8:.1f}" y="{cy+3.5:.1f}" fill="{COL[t]}" font-size="11">{SHORT[t]}</text>')
     return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto;display:block" '
             f'font-family="-apple-system,system-ui,sans-serif">{"".join(g)}{axis}{"".join(body)}{titles}</svg>')
 
